@@ -19,7 +19,7 @@ interface PaymentPanelProps {
   phase: PaymentPhase;
   error: string | null;
   settlement: PaymentSettlement | null;
-  onPay: (signer: ClientAvmSigner) => void;
+  onPay: (signer: ClientAvmSigner) => void | Promise<void>;
   onPhase: (phase: PaymentPhase) => void;
 }
 
