@@ -185,7 +185,7 @@ export function PaymentPanel({
               kind="warning"
               title="Different wallet required"
               what="The connected account is the same as the payment receiver."
-              next="Connect your PitchForge Player account to continue."
+              next="Connect your NarrativeX Player account to continue."
             />
           </div>
         )}

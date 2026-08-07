@@ -11,7 +11,7 @@ export function SiteHeader() {
         >
           <Mark className="size-7 shrink-0" />
           <span className="min-w-0 leading-none">
-            <span className="block truncate font-display text-xl tracking-tight">PitchForge</span>
+            <span className="block truncate font-display text-xl tracking-tight">NarrativeX</span>
             <span className="mt-0.5 hidden truncate font-mono text-[0.6rem] uppercase tracking-[0.18em] text-muted-foreground sm:block">
               AI Pitch Intelligence
             </span>
@@ -52,7 +52,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-2.5">
           <Mark className="size-5" />
-          <span className="rule-label">PitchForge — {new Date().getFullYear()}</span>
+          <span className="rule-label">NarrativeX — {new Date().getFullYear()}</span>
         </div>
         <span className="rule-label">x402 · Algorand TestNet · USDC</span>
       </div>

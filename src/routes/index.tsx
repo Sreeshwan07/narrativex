@@ -7,13 +7,13 @@ import { Chip, Panel } from "@/components/primitives";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "PitchForge — Turn your README into an investor pitch deck" },
+      { title: "NarrativeX — Turn your README into an investor pitch deck" },
       {
         name: "description",
         content:
-          "PitchForge converts READMEs and technical documentation into investor-ready pitch decks. Pay per generation with x402 on Algorand.",
+          "NarrativeX converts READMEs and technical documentation into investor-ready pitch decks. Pay per generation with x402 on Algorand.",
       },
-      { property: "og:title", content: "PitchForge — Your README is technical. Your pitch shouldn't be." },
+      { property: "og:title", content: "NarrativeX — Your README is technical. Your pitch shouldn't be." },
       {
         property: "og:description",
         content: "Transform technical documentation into investor-ready presentations.",
@@ -44,7 +44,7 @@ function Landing() {
                 <span className="italic text-ember">Your pitch shouldn't be.</span>
               </h1>
               <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground">
-                PitchForge reads your README, docs, or technical description and rewrites it as an
+                NarrativeX reads your README, docs, or technical description and rewrites it as an
                 investor-ready presentation — problem, market, product, traction — in the language
                 capital understands.
               </p>

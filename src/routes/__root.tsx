@@ -79,13 +79,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "PitchForge — README to investor pitch deck" },
+      { title: "NarrativeX — README to investor pitch deck" },
       {
         name: "description",
         content:
-          "PitchForge turns technical documentation into investor-ready pitch decks.",
+          "NarrativeX turns technical documentation into investor-ready pitch decks.",
       },
-      { property: "og:title", content: "PitchForge" },
+      { property: "og:title", content: "NarrativeX" },
       {
         property: "og:description",
         content: "Your README is technical. Your pitch shouldn't be.",

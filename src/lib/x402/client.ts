@@ -136,7 +136,7 @@ export async function preflightPayer(
   payer: string,
 ): Promise<string | null> {
   if (payer === requirements.payTo) {
-    return "Your connected wallet is the PitchForge receiving account. Connect a different Algorand TestNet account as the payer.";
+    return "Your connected wallet is the NarrativeX receiving account. Connect a different Algorand TestNet account as the payer.";
   }
 
   const assetId = String(requirements.asset ?? "");
