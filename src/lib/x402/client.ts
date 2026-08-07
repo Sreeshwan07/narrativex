@@ -69,11 +69,12 @@ export type QuoteResult =
 export async function requestDeckQuote(
   pitch: unknown,
   idempotencyKey: string,
+  options?: unknown,
 ): Promise<QuoteResult> {
   const response = await fetch(GENERATE_DECK_PATH, {
     method: "POST",
     headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ pitch }),
+    body: JSON.stringify({ pitch, options }),
   });
 
   if (response.status === 402) {
@@ -176,6 +177,7 @@ export async function preflightPayer(
 
 export interface PayAndGenerateArgs {
   pitch: unknown;
+  options?: unknown;
   quote: PaymentQuote;
   idempotencyKey: string;
   signer: ClientAvmSigner;
@@ -197,7 +199,7 @@ export type PayResult =
  * @returns The generated deck with its real settlement transaction, or an error.
  */
 export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayResult> {
-  const { pitch, idempotencyKey, signer, onPhase } = args;
+  const { pitch, options, idempotencyKey, signer, onPhase } = args;
 
   const trackedSigner: ClientAvmSigner = {
     address: signer.address,
@@ -226,7 +228,7 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
     response = await fetchWithPayment(GENERATE_DECK_PATH, {
       method: "POST",
       headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
-      body: JSON.stringify({ pitch }),
+      body: JSON.stringify({ pitch, options }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { pitchSchema } from "@/lib/pitch/schema";
-import type { Deck } from "@/lib/deck/schema";
+import { deckOptionsSchema, type Deck } from "@/lib/deck/schema";
 
 const ROUTE_PATTERN = "POST /api/public/generate-deck";
 
-const bodySchema = z.object({ pitch: pitchSchema });
+const bodySchema = z.object({
+  pitch: pitchSchema,
+  options: deckOptionsSchema.default({ style: "modern-startup", length: "standard" }),
+});
 
 /**
  * Payment-protected deck generation.
@@ -62,7 +65,7 @@ export const Route = createFileRoute("/api/public/generate-deck")({
             }
 
             const { buildDeck } = await import("@/lib/deck/build");
-            const deck = buildDeck(parsed.data.pitch);
+            const deck = buildDeck(parsed.data.pitch, parsed.data.options);
             if (idempotencyKey) setCompleted(idempotencyKey, deck);
             return { body: { success: true, deck } };
           },

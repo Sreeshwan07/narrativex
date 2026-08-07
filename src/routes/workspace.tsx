@@ -18,6 +18,7 @@ import { SourceComposer } from "@/components/source-composer";
 import { AnalysisProgress } from "@/components/analysis-progress";
 import { PitchIntelligence } from "@/components/pitch-intelligence";
 import { DeckPreview } from "@/components/deck-preview";
+import { DeckConfig } from "@/components/deck-config";
 import { AlgorandWalletProvider } from "@/components/wallet-provider";
 import { PaymentPanel } from "@/components/payment-panel";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,8 @@ import {
 import { explorerTxUrl, PAYMENT_PHASE_LABEL, type PaymentPhase } from "@/lib/x402/shared";
 import type { ClientAvmSigner } from "@x402/avm";
 import type { Pitch } from "@/lib/pitch/schema";
-import type { Deck } from "@/lib/deck/schema";
+import type { Deck, DeckOptions } from "@/lib/deck/schema";
+import { getDeckLength, getDeckStyle, recommendStyle, type DeckLengthId, type DeckStyleId } from "@/lib/deck/styles";
 import type { PitchSource } from "@/lib/pitch/types";
 
 const ANALYZE_STAGES = [
@@ -91,6 +93,9 @@ function WorkspacePage() {
   const [payError, setPayError] = useState<string | null>(null);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [deckStyle, setDeckStyle] = useState<DeckStyleId>("modern-startup");
+  const [deckLength, setDeckLength] = useState<DeckLengthId>("standard");
+  const [styleTouched, setStyleTouched] = useState(false);
   const idempotencyKey = useRef<string>("");
 
   const resetPayment = useCallback(() => {
@@ -112,6 +117,7 @@ function WorkspacePage() {
         const result = await analyze({ data: { content: source.content } });
         if (!result.success) throw new Error(result.error);
         setAnalyzeStage(ANALYZE_STAGES.length - 1);
+        if (!styleTouched) setDeckStyle(recommendStyle(result.pitch).style);
         return result.pitch;
       } finally {
         clearInterval(tick);
@@ -120,13 +126,18 @@ function WorkspacePage() {
     onError: (error) => toast.error(error.message || "Analysis failed."),
   });
 
+  const deckOptions: DeckOptions = { style: deckStyle, length: deckLength };
+  const recommendation = analysis.data
+    ? recommendStyle(analysis.data)
+    : { style: "modern-startup" as DeckStyleId, reason: "Choose the presentation format for your deck." };
+
   /** Step 1 of the paid flow: ask the server for the deck and expect HTTP 402. */
   const startGeneration = async (pitch: Pitch) => {
     setRequesting(true);
     setPayError(null);
     idempotencyKey.current = crypto.randomUUID();
     try {
-      const result = await requestDeckQuote(pitch, idempotencyKey.current);
+      const result = await requestDeckQuote(pitch, idempotencyKey.current, deckOptions);
       if (result.type === "payment_required") {
         setQuote(result.quote);
         setPhase("PAYMENT_REQUIRED");
@@ -152,6 +163,7 @@ function WorkspacePage() {
     setPayError(null);
     const result = await payAndGenerateDeck({
       pitch: analysis.data,
+      options: deckOptions,
       quote,
       idempotencyKey: idempotencyKey.current,
       signer,
@@ -285,7 +297,7 @@ function WorkspacePage() {
               )}
             </Panel>
 
-            <DeckPreview deck={deck} />
+            <DeckPreview deck={deck} onRestyle={resetPayment} />
           </div>
         )}
 
@@ -293,6 +305,21 @@ function WorkspacePage() {
           <>
             <div className="mt-14">
               <PitchIntelligence pitch={analysis.data} />
+            </div>
+
+            <div className="mt-10">
+              <DeckConfig
+                style={deckStyle}
+                length={deckLength}
+                recommended={recommendation.style}
+                recommendationReason={recommendation.reason}
+                disabled={requesting || quote !== null}
+                onStyleChange={(next) => {
+                  setStyleTouched(true);
+                  setDeckStyle(next);
+                }}
+                onLengthChange={setDeckLength}
+              />
             </div>
 
             {quote ? (
@@ -316,8 +343,9 @@ function WorkspacePage() {
                   <span className="rule-label">Step 03 — Generate</span>
                   <p className="mt-2 font-display text-2xl sm:text-3xl">Ready to forge the deck.</p>
                   <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                    Ten investor slides, built from the evidence above — nothing invented. Payment is
-                    requested by the server before anything is generated.
+                    {getDeckLength(deckLength).label} in the {getDeckStyle(deckStyle).name} style,
+                    built from the evidence above — nothing invented. Payment is requested by the
+                    server before anything is generated.
                   </p>
                 </div>
                 <Button
