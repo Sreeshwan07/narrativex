@@ -20,16 +20,19 @@ export default defineConfig({
     // "Cannot read properties of undefined (reading 'from')".
     // Map it to the userland `buffer` package — CLIENT ONLY. On the server the
     // userland shim throws "require is not defined", which 500s SSR/API routes.
-    environments: {
-      client: {
-        resolve: {
-          alias: [
-            { find: /^buffer$/, replacement: "buffer/" },
-            { find: /^node:buffer$/, replacement: "buffer/" },
-          ],
+    plugins: [
+      {
+        name: "client-only-buffer-alias",
+        enforce: "pre" as const,
+        async resolveId(this: any, source: string, importer: string | undefined) {
+          if (this.environment?.name !== "client") return null;
+          if (source !== "buffer" && source !== "node:buffer") return null;
+          const resolved = await this.resolve("buffer/", importer, { skipSelf: true });
+          return resolved?.id ?? null;
         },
       },
-    },
+    ],
+
     optimizeDeps: { include: ["buffer"] },
   },
 });
