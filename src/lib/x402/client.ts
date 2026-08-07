@@ -8,6 +8,7 @@ import {
   ALGORAND_TESTNET_CAIP2,
   ALGORAND_MAINNET_GENESIS_HASH,
   ALGORAND_TESTNET_GENESIS_HASH,
+  isValidAlgorandAddress,
 } from "@x402/avm";
 
 /** Full-genesis-hash network ids, matching what the facilitator advertises. */
@@ -42,8 +43,87 @@ function networkLabel(network: string): string {
   return network;
 }
 
-function toQuote(raw: PaymentRequired): PaymentQuote {
-  const requirements = raw.accepts[0]!;
+function rawChallenge(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Validates the complete x402 v2 AVM challenge before the AVM SDK is loaded.
+ * The current AVM SDK does not receive a prebuilt transaction from the
+ * facilitator: it builds one locally from these requirements and Algod's
+ * suggested parameters. Every field used by that builder must therefore be
+ * present and valid here.
+ */
+function validatePaymentRequired(value: unknown):
+  | { valid: true; raw: PaymentRequired; requirements: PaymentRequirements }
+  | { valid: false; reason: string } {
+  if (!isRecord(value)) return { valid: false, reason: "response is not a JSON object" };
+  if (value["x402Version"] !== 2)
+    return { valid: false, reason: `unsupported x402Version ${String(value["x402Version"])}` };
+  const resource = value["resource"];
+  if (!isRecord(resource) || typeof resource["url"] !== "string" || !resource["url"])
+    return { valid: false, reason: "resource.url is missing" };
+  const accepts = value["accepts"];
+  if (!Array.isArray(accepts) || accepts.length === 0)
+    return { valid: false, reason: "accepts is missing or empty" };
+
+  const supportedNetworks = new Set([
+    ALGORAND_TESTNET_CAIP2,
+    ALGORAND_MAINNET_CAIP2,
+    ALGORAND_TESTNET_NETWORK,
+    ALGORAND_MAINNET_NETWORK,
+  ]);
+  const candidate = accepts.find((item) => {
+    if (!isRecord(item)) return false;
+    return item["scheme"] === "exact" && typeof item["network"] === "string" && supportedNetworks.has(item["network"]);
+  });
+  if (!isRecord(candidate))
+    return { valid: false, reason: "no supported Algorand exact payment requirement was provided" };
+  if (typeof candidate["payTo"] !== "string" || !isValidAlgorandAddress(candidate["payTo"]))
+    return { valid: false, reason: "payTo is missing or is not a valid Algorand address" };
+  if (typeof candidate["asset"] !== "string" || !/^\d+$/.test(candidate["asset"]) || BigInt(candidate["asset"]) <= 0n)
+    return { valid: false, reason: "asset is missing or is not a positive Algorand asset id" };
+  if (typeof candidate["amount"] !== "string" || !/^\d+$/.test(candidate["amount"]) || BigInt(candidate["amount"]) <= 0n)
+    return { valid: false, reason: "amount is missing or is not a positive atomic-unit value" };
+  if (!Number.isInteger(candidate["maxTimeoutSeconds"]) || Number(candidate["maxTimeoutSeconds"]) <= 0)
+    return { valid: false, reason: "maxTimeoutSeconds is missing or invalid" };
+  const extra = candidate["extra"];
+  if (!isRecord(extra))
+    return { valid: false, reason: "extra is missing or is not an object" };
+  if (
+    extra["feePayer"] !== undefined &&
+    (typeof extra["feePayer"] !== "string" || !isValidAlgorandAddress(extra["feePayer"]))
+  ) {
+    return { valid: false, reason: "extra.feePayer is not a valid Algorand address" };
+  }
+
+  return {
+    valid: true,
+    raw: value as unknown as PaymentRequired,
+    requirements: candidate as unknown as PaymentRequirements,
+  };
+}
+
+function toQuote(rawValue: unknown): PaymentQuote {
+  console.info("[x402][facilitator] raw payment quote", rawValue);
+  const validation = validatePaymentRequired(rawValue);
+  if (!validation.valid) {
+    const raw = rawChallenge(rawValue);
+    console.error("[x402][facilitator] invalid payment quote", {
+      reason: validation.reason,
+      rawResponse: rawValue,
+    });
+    throw new Error(`Invalid x402 facilitator response: ${validation.reason}. Raw response: ${raw}`);
+  }
+  const { raw, requirements } = validation;
   const amount = Number(requirements.amount ?? "0") / ATOMIC_UNITS;
   return {
     raw,
@@ -86,19 +166,34 @@ export async function requestDeckQuote(
     });
     if (header) {
       try {
-        return { type: "payment_required", quote: toQuote(decodePaymentRequiredHeader(header)) };
+        const rawQuote = decodePaymentRequiredHeader(header);
+        return { type: "payment_required", quote: toQuote(rawQuote) };
       } catch (error) {
-        console.warn("[x402] PAYMENT-REQUIRED header could not be decoded", error);
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn("[x402] PAYMENT-REQUIRED header could not be decoded or validated", error);
+        return { type: "error", message };
       }
     }
-    const body = (await response.json().catch(() => null)) as PaymentRequired | null;
-    if (body && Array.isArray(body.accepts) && body.accepts.length > 0) {
-      return { type: "payment_required", quote: toQuote(body) };
+    const responseText = await response.text().catch(() => "");
+    let body: unknown = null;
+    try {
+      body = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      console.error("[x402][facilitator] non-JSON payment response", responseText);
+    }
+    if (body) {
+      try {
+        return { type: "payment_required", quote: toQuote(body) };
+      } catch (error) {
+        return {
+          type: "error",
+          message: error instanceof Error ? error.message : String(error),
+        };
+      }
     }
     return {
       type: "error",
-      message:
-        "The server requested payment but the PAYMENT-REQUIRED header did not reach the browser.",
+      message: `The server requested payment but returned no valid x402 quote. Raw response: ${responseText || "<empty>"}`,
     };
   }
 
@@ -225,6 +320,9 @@ interface GenerateDeckResponse {
 function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
   const { quote, signer } = args;
   if (!quote) return "Payment payload error: the payment quote is missing. Re-run the analysis.";
+  const rawValidation = validatePaymentRequired(quote.raw);
+  if (!rawValidation.valid)
+    return `Invalid x402 facilitator response: ${rawValidation.reason}. Raw response: ${rawChallenge(quote.raw)}`;
   const req = quote.requirements as PaymentRequirements | undefined;
   if (!req) return "Payment payload error: the server sent no payment requirements.";
   if (!req.payTo) return "Payment payload error: the payment requirements have no receiver (payTo).";
@@ -237,6 +335,11 @@ function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
     return "Payment payload error: the connected wallet did not expose an account address. Reconnect your wallet.";
   if (typeof signer.signTransactions !== "function")
     return "Payment payload error: the connected wallet cannot sign transactions. Reconnect your wallet.";
+  if (rawValidation.requirements !== req) {
+    const sameRequirement = rawChallenge(rawValidation.requirements) === rawChallenge(req);
+    if (!sameRequirement)
+      return "Payment payload error: the selected payment requirement no longer matches the raw x402 quote.";
+  }
   return null;
 }
 
@@ -418,7 +521,20 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
       requirements: args.quote.requirements,
       bufferModuleAvailable: hasBuffer(),
     });
-    const paymentPayload = await client.createPaymentPayload(args.quote.raw);
+    const validation = validatePaymentRequired(args.quote.raw);
+    if (!validation.valid) {
+      throw new Error(
+        `Invalid x402 facilitator response: ${validation.reason}. Raw response: ${rawChallenge(args.quote.raw)}`,
+      );
+    }
+    // Pass a fresh, single-option challenge to prevent the SDK selector from
+    // choosing a different accept entry than the one already validated above.
+    const validatedQuote: PaymentRequired = {
+      ...validation.raw,
+      accepts: [{ ...validation.requirements, extra: { ...validation.requirements.extra } }],
+    };
+    console.info("[x402][sdk] validated payment requirement", validatedQuote.accepts[0]);
+    const paymentPayload = await client.createPaymentPayload(validatedQuote);
     console.info("[x402][sdk] createPaymentPayload response", paymentPayload);
     const invalidPayload = describeInvalidSdkPayload(paymentPayload);
     if (invalidPayload) {
