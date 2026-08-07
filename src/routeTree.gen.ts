@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ApiPublicGenerateDeckRouteImport } from './routes/api/public/generate-deck'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
@@ -18,6 +19,11 @@ import { Route as ApiPublicX402StatusRouteImport } from './routes/api/public/x40
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WorkspaceRoute = WorkspaceRouteImport.update({
@@ -43,6 +49,7 @@ const ApiPublicX402StatusRoute = ApiPublicX402StatusRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
@@ -67,6 +76,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/workspace'
     | '/api/public/generate-deck'
     | '/api/public/health'
@@ -74,6 +84,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
     | '/workspace'
     | '/api/public/generate-deck'
     | '/api/public/health'
@@ -81,6 +92,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/auth'
     | '/workspace'
     | '/api/public/generate-deck'
     | '/api/public/health'
@@ -89,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ApiPublicGenerateDeckRoute: typeof ApiPublicGenerateDeckRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
@@ -102,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/workspace': {
@@ -137,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
   WorkspaceRoute: WorkspaceRoute,
   ApiPublicGenerateDeckRoute: ApiPublicGenerateDeckRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
