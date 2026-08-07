@@ -82,19 +82,28 @@ export async function requestDeckQuote(
 
   if (response.status === 402) {
     const header = response.headers.get("PAYMENT-REQUIRED");
+    console.info("[x402][step] quote_402", {
+      hasPaymentRequiredHeader: Boolean(header),
+      origin: window.location.origin,
+    });
     if (header) {
       try {
         return { type: "payment_required", quote: toQuote(decodePaymentRequiredHeader(header)) };
-      } catch {
-        /* fall through to body parsing */
+      } catch (error) {
+        console.warn("[x402] PAYMENT-REQUIRED header could not be decoded", error);
       }
     }
     const body = (await response.json().catch(() => null)) as PaymentRequired | null;
     if (body && Array.isArray(body.accepts) && body.accepts.length > 0) {
       return { type: "payment_required", quote: toQuote(body) };
     }
-    return { type: "error", message: "The server requested payment but sent no payment terms." };
+    return {
+      type: "error",
+      message:
+        "The server requested payment but the PAYMENT-REQUIRED header did not reach the browser.",
+    };
   }
+
 
   const body = (await response.json().catch(() => null)) as
     | { success?: boolean; deck?: Deck; message?: string }
