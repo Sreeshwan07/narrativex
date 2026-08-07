@@ -32,7 +32,7 @@ function networkLabel(network: string): string {
 
 function toQuote(raw: PaymentRequired): PaymentQuote {
   const requirements = raw.accepts[0]!;
-  const amount = Number(requirements.maxAmountRequired ?? "0") / ATOMIC_UNITS;
+  const amount = Number(requirements.amount ?? "0") / ATOMIC_UNITS;
   return {
     raw,
     requirements,
