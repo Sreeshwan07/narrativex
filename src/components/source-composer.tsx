@@ -153,7 +153,7 @@ export function SourceComposer({ onGenerate, pending = false }: SourceComposerPr
               })
             }
           >
-            {pending ? "Analysing…" : "Generate Pitch Deck"}
+            {pending ? "Analysing…" : "Analyse documentation"}
           </Button>
 
         </div>
