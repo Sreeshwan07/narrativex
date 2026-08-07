@@ -69,5 +69,8 @@ export function describePaymentError(reason: string | undefined, fallback: strin
   if (r.includes("signature") || r.includes("not_signed"))
     return "The payment was not signed. Approve the transaction in your wallet to continue.";
   if (r.includes("opt")) return "The receiving or paying account is not opted in to TestNet USDC.";
-  return fallback;
+  // Unrecognised failure: keep the raw reason visible so it can be diagnosed
+  // instead of hiding it behind a generic message.
+  const detail = reason.trim().slice(0, 300);
+  return detail ? `${fallback} Details: ${detail}` : fallback;
 }
