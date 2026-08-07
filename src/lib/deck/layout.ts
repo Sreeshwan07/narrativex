@@ -815,7 +815,7 @@ function drawQuestions(p: Painter, slide: DeckSlide, top: number) {
   const cardW = (content - gap * (items.length - 1)) / Math.max(1, items.length);
   items.forEach((question, i) => {
     const x = m + i * (cardW + gap);
-    p.card(x, top, cardW, 250);
+    p.card(x, top, cardW, 196);
     p.text({
       x: x + 24,
       y: top + 24,
@@ -839,7 +839,7 @@ function drawQuestions(p: Painter, slide: DeckSlide, top: number) {
   if (slide.body) {
     p.text({
       x: m,
-      y: top + 280,
+      y: top + 226,
       w: content - 60,
       text: clamp(slide.body, 200),
       size: p.t(15),
