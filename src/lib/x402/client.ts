@@ -250,6 +250,25 @@ function isPendingWalletRequest(message: string): boolean {
   return /\b4100\b/.test(message) || /another transaction request in progress/i.test(message);
 }
 
+/**
+ * Decodes the base64 PAYMENT-REQUIRED challenge on a failing response so the
+ * facilitator's exact rejection reason can be shown and logged.
+ *
+ * @param response - Response returned by the protected endpoint.
+ * @returns The reason string, or null when absent/undecodable.
+ */
+function decodeChallengeError(response: Response): string | null {
+  const header = response.headers.get("PAYMENT-REQUIRED");
+  if (!header) return null;
+  try {
+    const decoded = decodePaymentRequiredHeader(header) as PaymentRequired & { error?: string };
+    return typeof decoded.error === "string" && decoded.error ? decoded.error : null;
+  } catch (error) {
+    console.warn("[x402] could not decode PAYMENT-REQUIRED header on failure", error);
+    return null;
+  }
+}
+
 export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayResult> {
   if (inFlightPayment) {
     console.warn("[x402] payment already in flight — awaiting the existing request");
