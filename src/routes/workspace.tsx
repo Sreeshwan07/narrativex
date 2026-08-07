@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SourceComposer } from "@/components/source-composer";
+import { AnalysisProgress } from "@/components/analysis-progress";
+import { PitchIntelligence } from "@/components/pitch-intelligence";
+import { analyzeReadmeFn } from "@/lib/pitch/analyze.functions";
+import type { Pitch } from "@/lib/pitch/schema";
 import type { PitchSource } from "@/lib/pitch/types";
+
 
 export const Route = createFileRoute("/workspace")({
   head: () => ({
