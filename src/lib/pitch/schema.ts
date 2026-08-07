@@ -22,6 +22,8 @@ export const pitchSchema = z.object({
   call_to_action: z.string(),
   /** Short notes on sections that were incomplete or inferred rather than stated. */
   confidence_notes: z.array(z.string()),
+  /** Three concise questions an investor would likely ask about this project. */
+  investor_questions: z.array(z.string()),
 });
 
 export type Pitch = z.infer<typeof pitchSchema>;
@@ -42,6 +44,7 @@ export const emptyPitch: Pitch = {
   roadmap: [],
   call_to_action: "",
   confidence_notes: [],
+  investor_questions: [],
 };
 
 export const ANALYZE_LIMITS = {
