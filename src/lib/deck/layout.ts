@@ -236,7 +236,7 @@ function bulletList(p: Painter, slide: DeckSlide, x: number, y: number, w: numbe
   const hasDetail = items.some((b) => b.detail);
   const gap = 26;
   const colW = cols > 1 ? (w - gap * (cols - 1)) / cols : w;
-  const rowH = hasDetail ? 92 : 54;
+  const rowH = hasDetail ? 74 : 48;
 
   items.forEach((bullet, i) => {
     const col = i % cols;
@@ -427,27 +427,28 @@ function drawSplit(p: Painter, slide: DeckSlide, top: number) {
   const leftW = Math.round(content * 0.46);
   const rightX = m + leftW + 44;
   const rightW = content - leftW - 44;
+  let ly = top;
 
   if (slide.body) {
-    p.text({
-      x: m,
-      y: top,
-      w: leftW,
-      text: slide.body,
-      size: p.t(23),
-      color: pal.ink,
-      font: "body",
-    });
+    const size = p.t(23);
+    p.text({ x: m, y: ly, w: leftW, text: slide.body, size, color: pal.ink, font: "body" });
+    ly += blockHeight(slide.body, leftW, size) + 28;
   }
   if (slide.subtitle) {
-    p.eyebrow(slide.subtitle, m, H - 172, leftW);
+    p.eyebrow(slide.subtitle, m, Math.min(ly, H - 190), leftW);
   }
 
+  const items = slide.bullets.slice(0, p.style.density);
+  const hasDetail = items.some((b) => b.detail);
+  const listH = items.length * (hasDetail ? 74 : 48);
   const panelTop = top - 18;
-  const panelH = H - panelTop - 140;
+  const panelH = Math.min(
+    H - panelTop - 130,
+    Math.max(180, listH + 62, slide.tags.length && !items.length ? 190 : 0),
+  );
   p.card(rightX, panelTop, rightW, panelH, true);
   bulletList(p, slide, rightX + 28, panelTop + 30, rightW - 56, 1);
-  if (!slide.bullets.length && slide.tags.length) {
+  if (!items.length && slide.tags.length) {
     tagCloud(p, slide.tags, rightX + 28, panelTop + 30, rightW - 56);
   }
 }
@@ -526,7 +527,11 @@ function drawFeatures(p: Painter, slide: DeckSlide, top: number) {
   const rows = Math.ceil(items.length / cols);
   const gap = 20;
   const cardW = (content - gap * (cols - 1)) / cols;
-  const cardH = Math.min(200, (H - top - 130 - gap * (rows - 1)) / rows);
+  const hasDetail = items.some((i) => i.detail);
+  const cardH = Math.min(
+    hasDetail ? 172 : 118,
+    (H - top - 130 - gap * (rows - 1)) / rows,
+  );
 
   items.forEach((item, i) => {
     const x = m + (i % cols) * (cardW + gap);
@@ -606,7 +611,8 @@ function drawMatrix(p: Painter, slide: DeckSlide, top: number) {
   if (!cols.length) return;
   const gap = 20;
   const colW = (content - gap * (cols.length - 1)) / cols.length;
-  const colH = H - top - 130;
+  const rows = Math.max(...cols.map((c) => Math.min(5, c.items.length)), 1);
+  const colH = Math.min(H - top - 130, 96 + rows * 52);
 
   cols.forEach((col, i) => {
     const x = m + i * (colW + gap);
