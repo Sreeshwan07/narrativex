@@ -145,11 +145,12 @@ export function SourceComposer({ onGenerate }: SourceComposerProps) {
             onClick={() =>
               onGenerate({
                 kind: fileName ? "file" : "paste",
-                fileName: fileName ?? undefined,
                 content: text,
-                sizeBytes,
+                ...(fileName ? { fileName } : {}),
+                ...(sizeBytes !== undefined ? { sizeBytes } : {}),
               })
             }
+
           >
             Generate Pitch Deck
           </Button>
