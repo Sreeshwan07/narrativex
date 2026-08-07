@@ -143,7 +143,7 @@ export function SourceComposer({ onGenerate, pending = false }: SourceComposerPr
           </p>
           <Button
             variant="ink"
-            disabled={!ready}
+            disabled={!ready || pending}
             onClick={() =>
               onGenerate({
                 kind: fileName ? "file" : "paste",
@@ -152,10 +152,10 @@ export function SourceComposer({ onGenerate, pending = false }: SourceComposerPr
                 ...(sizeBytes !== undefined ? { sizeBytes } : {}),
               })
             }
-
           >
-            Generate Pitch Deck
+            {pending ? "Analysing…" : "Generate Pitch Deck"}
           </Button>
+
         </div>
       </div>
     </div>
