@@ -73,7 +73,7 @@ export function readX402Config(): X402Config {
   const safePrice = Number.isFinite(priceValue) && priceValue > 0 ? priceValue : Number(DEFAULT_PRICE);
 
   return {
-    network: (isMainnet ? ALGORAND_MAINNET_CAIP2 : ALGORAND_TESTNET_CAIP2) as Network,
+    network: (isMainnet ? ALGORAND_MAINNET_NETWORK : ALGORAND_TESTNET_NETWORK) as Network,
     networkLabel: isMainnet ? "Algorand MainNet" : "Algorand TestNet",
     asset: isMainnet ? USDC_MAINNET_ASA_ID : USDC_TESTNET_ASA_ID,
     assetLabel: isMainnet ? "USDC (MainNet)" : "USDC (TestNet)",
