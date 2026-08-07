@@ -107,6 +107,12 @@ export function PaymentPanel({
             <dt className="rule-label">Network</dt>
             <dd className="truncate font-mono text-xs">{quote.networkLabel}</dd>
           </div>
+          <div className="flex items-baseline justify-between gap-4 border-t border-border pt-3">
+            <dt className="rule-label">Payer</dt>
+            <dd className="truncate font-mono text-xs" title={activeAddress ?? ""}>
+              {activeAddress ? shortAddress(activeAddress) : "not connected"}
+            </dd>
+          </div>
         </dl>
       </div>
 
