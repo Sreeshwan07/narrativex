@@ -82,9 +82,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "NarrativeX — README to investor pitch deck" },
       {
         name: "description",
-        content:
-          "NarrativeX turns technical documentation into investor-ready pitch decks.",
+        content: "NarrativeX — Turn your README into an investor-ready pitch.",
       },
+
       { property: "og:title", content: "NarrativeX" },
       {
         property: "og:description",
