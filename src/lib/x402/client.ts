@@ -104,8 +104,79 @@ export async function requestDeckQuote(
   };
 }
 
+function isTestnet(network: string): boolean {
+  return network === ALGORAND_TESTNET_CAIP2 || network === ALGORAND_TESTNET_NETWORK;
+}
+
+function algodBaseUrl(network: string): string {
+  return isTestnet(network)
+    ? "https://testnet-api.algonode.cloud"
+    : "https://mainnet-api.algonode.cloud";
+}
+
+/** Minimum microALGO balance we require before asking the wallet to sign. */
+const MIN_MICROALGO_FOR_FEES = 2_000;
+
+interface AlgodAccount {
+  amount?: number;
+  assets?: Array<{ "asset-id": number; amount: number }>;
+}
+
+/**
+ * Read-only pre-flight against public algod. Blocks the payment attempt when
+ * the payer cannot possibly settle it (wrong account, no opt-in, no funds), so
+ * the user is never asked to sign a transaction that must fail.
+ *
+ * @param quote - Payment requirements returned by the server.
+ * @param payer - Connected wallet address (never the receiver).
+ * @returns An error message, or null when the payer looks able to pay.
+ */
+export async function preflightPayer(
+  requirements: PaymentRequirements,
+  payer: string,
+): Promise<string | null> {
+  if (payer === requirements.payTo) {
+    return "Your connected wallet is the PitchForge receiving account. Connect a different Algorand TestNet account as the payer.";
+  }
+
+  const assetId = String(requirements.asset ?? "");
+  const required = BigInt(requirements.amount ?? "0");
+  const network = requirements.network;
+
+  let account: AlgodAccount;
+  try {
+    const res = await fetch(`${algodBaseUrl(network)}/v2/accounts/${payer}`, {
+      headers: { accept: "application/json" },
+    });
+    if (res.status === 404) {
+      return "This account does not exist on Algorand TestNet yet. Fund it with TestNet ALGO before paying.";
+    }
+    if (!res.ok) return null; // don't block on a transient node error
+    account = (await res.json()) as AlgodAccount;
+  } catch {
+    return null;
+  }
+
+  if ((account.amount ?? 0) < MIN_MICROALGO_FOR_FEES) {
+    return "Your wallet has no TestNet ALGO to cover the transaction fee. Fund it from the Algorand TestNet dispenser and try again.";
+  }
+
+  const holding = (account.assets ?? []).find((a) => String(a["asset-id"]) === assetId);
+  if (!holding) {
+    return `Your wallet is not opted in to Algorand TestNet USDC (asset ${assetId}). Opt in to that asset in Pera, then try again.`;
+  }
+  if (BigInt(holding.amount ?? 0) < required) {
+    const need = Number(required) / ATOMIC_UNITS;
+    const have = Number(holding.amount ?? 0) / ATOMIC_UNITS;
+    return `Insufficient TestNet USDC: this payment needs ${need.toFixed(2)} USDC but your wallet holds ${have.toFixed(2)} USDC.`;
+  }
+
+  return null;
+}
+
 export interface PayAndGenerateArgs {
   pitch: unknown;
+  quote: PaymentQuote;
   idempotencyKey: string;
   signer: ClientAvmSigner;
   onPhase: (phase: PaymentPhase) => void;
@@ -137,6 +208,9 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
       return signed;
     },
   };
+
+  const blocked = await preflightPayer(args.quote.requirements, signer.address);
+  if (blocked) return { type: "error", message: blocked };
 
   const client = new x402Client()
     .register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(trackedSigner))
