@@ -39,8 +39,14 @@ export function Mark({ className = "size-6" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
       <rect x="1" y="1" width="22" height="22" rx="6" className="fill-ink" />
-      <path d="M7 17.5V6.5h6.2" className="stroke-ink-foreground" strokeWidth="1.8" fill="none" />
-      <path d="M7 12h5" className="stroke-ink-foreground" strokeWidth="1.8" fill="none" />
+      <path
+        d="M7 17.5V6.5l6 11v-11"
+        className="stroke-ink-foreground"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        fill="none"
+      />
+
       <path d="M15.5 6.5 19 12l-3.5 5.5" className="stroke-ember" strokeWidth="1.8" fill="none" />
     </svg>
   );
