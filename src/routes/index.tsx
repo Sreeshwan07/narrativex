@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, FileCode2, Presentation, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { Chip, Panel } from "@/components/primitives";
 
 export const Route = createFileRoute("/")({
   head: () => ({
