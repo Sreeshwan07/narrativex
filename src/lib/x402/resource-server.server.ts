@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import {
   FacilitatorResponseError,
+  FacilitatorTimeoutError,
   HTTPFacilitatorClient,
   getFacilitatorResponseError,
   withPrivateCacheControl,
