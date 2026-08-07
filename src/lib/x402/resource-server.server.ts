@@ -138,6 +138,52 @@ function jsonResponse(body: unknown, status: number, headers: Record<string, str
   });
 }
 
+const REDACTED_LOG_KEYS = /authorization|cookie|mnemonic|private|secret|signature|token|x-payment/i;
+
+/**
+ * Produces a JSON-safe diagnostic value while removing credentials, signed
+ * payment payloads, and other values that must never enter server logs.
+ */
+function toSafeLogValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      cause: toSafeLogValue(value.cause, seen),
+    };
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (seen.has(value)) return "[circular]";
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => toSafeLogValue(item, seen));
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      REDACTED_LOG_KEYS.test(key) ? "[redacted]" : toSafeLogValue(item, seen),
+    ]),
+  );
+}
+
+function logX402Failure(
+  stage: "initialization" | "verification" | "settlement",
+  config: X402Config,
+  details: unknown,
+) {
+  console.error(
+    "x402 payment failure",
+    JSON.stringify({
+      stage,
+      facilitator: config.facilitatorUrl,
+      network: config.network,
+      asset: config.asset,
+      amountAtomic: toAtomicUsdc(config.priceValue),
+      payTo: config.payTo,
+      details: toSafeLogValue(details),
+    }),
+  );
+}
+
 export interface ProtectedHandlerResult {
   /** JSON body returned to the client when payment succeeds. */
   body: unknown;
@@ -204,9 +250,8 @@ export async function withX402(
       await httpServer.initialize();
       cached.initialized = true;
     } catch (error) {
-      console.error("x402 facilitator init failed:", config.facilitatorUrl, error);
-
       const facilitatorError = getFacilitatorResponseError(error);
+      logX402Failure("initialization", config, facilitatorError ?? error);
       return jsonResponse(
         {
           error: "facilitator_unavailable",
@@ -223,6 +268,7 @@ export async function withX402(
   try {
     processed = await httpServer.processHTTPRequest(context);
   } catch (error) {
+    logX402Failure("verification", config, getFacilitatorResponseError(error) ?? error);
     if (error instanceof FacilitatorResponseError) {
       return jsonResponse({ error: "facilitator_error", message: error.message }, 502);
     }
@@ -231,6 +277,11 @@ export async function withX402(
 
   if (processed.type === "payment-error") {
     const { response } = processed;
+    logX402Failure("verification", config, {
+      status: response.status,
+      body: response.body,
+      headers: response.headers,
+    });
     return jsonResponse(response.body, response.status, response.headers);
   }
 
@@ -268,6 +319,11 @@ export async function withX402(
     );
 
     if (!settle.success) {
+      logX402Failure("settlement", config, {
+        status: settle.response.status,
+        body: settle.response.body,
+        headers: settle.response.headers,
+      });
       return jsonResponse(settle.response.body, settle.response.status, settle.response.headers);
     }
 
@@ -276,10 +332,10 @@ export async function withX402(
       "Cache-Control": withPrivateCacheControl(null),
     });
   } catch (error) {
+    logX402Failure("settlement", config, getFacilitatorResponseError(error) ?? error);
     if (error instanceof FacilitatorResponseError) {
       return jsonResponse({ error: "settlement_failed", message: error.message }, 502);
     }
-    console.error("x402 settlement error:", error);
     return jsonResponse(
       { error: "settlement_failed", message: "Payment settlement failed. You were not charged." },
       402,
