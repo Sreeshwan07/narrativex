@@ -20,10 +20,10 @@ export default defineConfig({
     // "Cannot read properties of undefined (reading 'from')".
     // Map it to the userland `buffer` package so the codecs work client-side.
     resolve: {
-      alias: {
-        buffer: "buffer/",
-        "node:buffer": "buffer/",
-      },
+      alias: [
+        { find: /^buffer$/, replacement: "buffer/" },
+        { find: /^node:buffer$/, replacement: "buffer/" },
+      ],
     },
     optimizeDeps: { include: ["buffer"] },
   },
