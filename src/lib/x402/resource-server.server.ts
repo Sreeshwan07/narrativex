@@ -131,6 +131,35 @@ function toAtomicUsdc(value: string): string {
   return BigInt(Math.round(Number.parseFloat(value) * 1_000_000)).toString();
 }
 
+/**
+ * Reads the human-readable `error` field out of a base64 PAYMENT-REQUIRED header.
+ *
+ * @param headers - Response headers produced by the x402 SDK.
+ * @returns The failure reason, or null when it cannot be read.
+ */
+function extractChallengeError(headers: Record<string, string> | undefined): string | null {
+  const raw = headers?.["PAYMENT-REQUIRED"] ?? headers?.["payment-required"];
+  if (!raw) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf8")) as { error?: string };
+    return typeof decoded.error === "string" && decoded.error ? decoded.error : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param body - Error body returned by the x402 SDK.
+ * @returns A readable message when the body carries one.
+ */
+function extractBodyError(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as { error?: unknown; message?: unknown };
+  if (typeof b.message === "string" && b.message) return b.message;
+  if (typeof b.error === "string" && b.error) return b.error;
+  return null;
+}
+
 function jsonResponse(body: unknown, status: number, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body ?? {}), {
     status,
@@ -284,12 +313,25 @@ export async function withX402(
 
   if (processed.type === "payment-error") {
     const { response } = processed;
+    const reason = extractChallengeError(response.headers) ?? extractBodyError(response.body);
     logX402Failure("verification", config, {
       status: response.status,
       body: response.body,
       headers: response.headers,
+      reason,
     });
-    return jsonResponse(response.body, response.status, response.headers);
+    // The x402 SDK returns an empty body and puts the failure reason inside the
+    // base64 PAYMENT-REQUIRED header. Mirror it into JSON so the browser can
+    // show the exact rejection instead of "Payment failed".
+    const body =
+      response.body && Object.keys(response.body as object).length > 0
+        ? response.body
+        : {
+            error: "payment_verification_failed",
+            stage: "verification",
+            message: reason ?? "The facilitator rejected the payment payload.",
+          };
+    return jsonResponse(body, response.status, response.headers);
   }
 
   if (processed.type === "no-payment-required") {
