@@ -6,9 +6,11 @@ import { SOURCE_LIMITS, countWords, type PitchSource } from "@/lib/pitch/types";
 
 interface SourceComposerProps {
   onGenerate: (source: PitchSource) => void;
+  pending?: boolean;
 }
 
-export function SourceComposer({ onGenerate }: SourceComposerProps) {
+export function SourceComposer({ onGenerate, pending = false }: SourceComposerProps) {
+
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [sizeBytes, setSizeBytes] = useState<number | undefined>(undefined);
@@ -141,7 +143,7 @@ export function SourceComposer({ onGenerate }: SourceComposerProps) {
           </p>
           <Button
             variant="ink"
-            disabled={!ready}
+            disabled={!ready || pending}
             onClick={() =>
               onGenerate({
                 kind: fileName ? "file" : "paste",
@@ -150,10 +152,10 @@ export function SourceComposer({ onGenerate }: SourceComposerProps) {
                 ...(sizeBytes !== undefined ? { sizeBytes } : {}),
               })
             }
-
           >
-            Generate Pitch Deck
+            {pending ? "Analysing…" : "Generate Pitch Deck"}
           </Button>
+
         </div>
       </div>
     </div>
