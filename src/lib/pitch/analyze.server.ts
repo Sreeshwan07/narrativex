@@ -13,13 +13,20 @@ const MODEL = "google/gemini-3.6-flash";
 
 const SYSTEM_PROMPT = `You are an analyst who turns technical project documentation into investor-ready pitch material.
 
+EVIDENCE MODEL — classify every factual business claim before you write it:
+A. Explicitly supported — stated in the documentation. Write it plainly.
+B. Reasonable interpretation — a fair reading of what the documentation implies. You may write it, but keep it qualitative and add a confidence note naming the field and what was inferred.
+C. Missing — no basis in the documentation. Return "" or [] for that field. Never fill the gap.
+
 RULES — these are absolute:
-1. Use ONLY information supported by the supplied documentation.
-2. NEVER fabricate revenue, users, funding, market size, partnerships, traction, customers, competitors, or any business claim.
-3. If the documentation gives no evidence for a field, return an empty string ("") or an empty array ([]) for it. Empty is always better than invented.
-4. You may rephrase technical language into clear, confident, investor-friendly prose — rewriting is allowed, inventing is not.
-5. Keep prose fields concise: 1-3 sentences. Keep list items short (under 15 words each), maximum 6 items per list.
-6. Do not include markdown, code fences, or commentary — only the structured fields.`;
+1. Use ONLY information supported by, or reasonably interpretable from, the supplied documentation.
+2. NEVER invent quantitative claims of any kind: market sizes, revenue, customer or user counts, funding, growth rates, partnerships, traction metrics, or named competitors. If a number is not in the documentation, it does not exist.
+3. market_opportunity: if the documentation contains quantitative market data (market size, spend, segment figures), summarise it and set market_data_available to true. Otherwise write a qualitative opportunity statement grounded in the described problem and users, and set market_data_available to false. Never state a figure to justify the opportunity.
+4. traction and business_model: category C unless the documentation states them. Empty is always better than invented.
+5. confidence_notes: brief notes (under 20 words each) for sections that were incomplete or inferred — e.g. "Business model inferred from open-source positioning; not stated." Leave empty when everything was explicit.
+6. You may rephrase technical language into clear, confident, investor-friendly prose — rewriting is allowed, inventing is not.
+7. Keep prose fields concise: 1-3 sentences. Keep list items short (under 15 words each), maximum 6 items per list.
+8. Do not include markdown, code fences, or commentary — only the structured fields.`;
 
 function clampList(values: string[], max = 6): string[] {
   return values
@@ -29,6 +36,7 @@ function clampList(values: string[], max = 6): string[] {
 }
 
 function normalize(pitch: Pitch): Pitch {
+  const market_opportunity = pitch.market_opportunity.trim();
   return {
     ...emptyPitch,
     ...pitch,
@@ -36,7 +44,9 @@ function normalize(pitch: Pitch): Pitch {
     tagline: pitch.tagline.trim(),
     problem: pitch.problem.trim(),
     solution: pitch.solution.trim(),
-    market_opportunity: pitch.market_opportunity.trim(),
+    market_opportunity,
+    // A "quantitative data available" claim is meaningless without an actual statement.
+    market_data_available: market_opportunity ? pitch.market_data_available : false,
     business_model: pitch.business_model.trim(),
     traction: pitch.traction.trim(),
     call_to_action: pitch.call_to_action.trim(),
@@ -45,8 +55,10 @@ function normalize(pitch: Pitch): Pitch {
     competitive_advantage: clampList(pitch.competitive_advantage),
     technology: clampList(pitch.technology, 10),
     roadmap: clampList(pitch.roadmap),
+    confidence_notes: clampList(pitch.confidence_notes),
   };
 }
+
 
 /** Server-only: analyses README/documentation text into a validated pitch object. */
 export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeResult> {
