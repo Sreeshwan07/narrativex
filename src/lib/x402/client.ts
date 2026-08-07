@@ -1,9 +1,7 @@
 // Must run before any @x402 module: installs Buffer for the browser.
 import "@/lib/x402/buffer-polyfill";
-import { x402Client, x402HTTPClient } from "@x402/fetch";
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from "@x402/core/http";
 import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
-import { ExactAvmScheme } from "@x402/avm/exact/client";
 import type { ClientAvmSigner } from "@x402/avm";
 import {
   ALGORAND_MAINNET_CAIP2,
@@ -242,6 +240,25 @@ function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
   return null;
 }
 
+/** The current AVM SDK returns signed transaction bytes in payload.paymentGroup. */
+function describeInvalidSdkPayload(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return "Payment payload error: the x402 SDK returned no payment payload object.";
+  }
+  const payload = (value as { payload?: unknown }).payload;
+  if (!payload || typeof payload !== "object") {
+    return "Payment payload error: the x402 SDK response has no payload object.";
+  }
+  const paymentGroup = (payload as { paymentGroup?: unknown }).paymentGroup;
+  if (!Array.isArray(paymentGroup) || paymentGroup.length === 0) {
+    return "Payment payload error: the x402 SDK response contains no Algorand paymentGroup transactions.";
+  }
+  if (paymentGroup.some((transaction) => typeof transaction !== "string" || !transaction)) {
+    return "Payment payload error: the x402 SDK returned an invalid Algorand transaction in paymentGroup.";
+  }
+  return null;
+}
+
 /**
  * Single in-flight payment guard. Pera (and every WalletConnect wallet) allows
  * exactly one pending transaction request; a second one fails with code 4100.
@@ -300,8 +317,33 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   const trackedSigner: ClientAvmSigner = {
     address: signer.address,
     signTransactions: async (txns, indexes) => {
-      if (!txns || txns.length === 0) {
+      // In @x402/avm v2 the scheme supplies encoded Uint8Array transactions,
+      // not objects with a `from` property. Log and validate the actual SDK
+      // callback value before the wallet adapter touches it.
+      console.info("[x402][sdk] signTransactions response", { txns, indexes });
+      if (!Array.isArray(txns) || txns.length === 0) {
         throw new Error("Payment payload error: x402 produced no Algorand transaction to sign.");
+      }
+      const invalidIndex = txns.findIndex(
+        (txn) => !(txn instanceof Uint8Array) || txn.byteLength === 0,
+      );
+      if (invalidIndex !== -1) {
+        console.error("[x402][sdk] unexpected transaction object", {
+          invalidIndex,
+          transaction: txns[invalidIndex],
+          transactions: txns,
+        });
+        throw new Error(
+          `Payment payload error: x402 returned an invalid transaction at index ${invalidIndex}.`,
+        );
+      }
+      if (!Array.isArray(indexes) || indexes.length === 0) {
+        console.error("[x402][sdk] no wallet signing indexes", { txns, indexes });
+        throw new Error("Payment payload error: x402 did not identify a transaction for this wallet to sign.");
+      }
+      if (indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= txns.length)) {
+        console.error("[x402][sdk] invalid wallet signing indexes", { txns, indexes });
+        throw new Error("Payment payload error: x402 returned invalid transaction signing indexes.");
       }
       console.info("[x402] transactions to sign", txns.length, "indexes", indexes);
       onPhase("WALLET_PENDING");
@@ -349,6 +391,14 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   const blocked = await preflightPayer(args.quote.requirements, signer.address);
   if (blocked) return { type: "error", message: blocked };
 
+  // Load the SDK only after the browser Buffer polyfill has been installed.
+  // Static ESM imports are evaluated before this module body and can otherwise
+  // leave AVM's internal Buffer.from unavailable in production chunks.
+  const [{ x402Client, x402HTTPClient }, { ExactAvmScheme }] = await Promise.all([
+    import("@x402/fetch"),
+    import("@x402/avm/exact/client"),
+  ]);
+
   const client = new x402Client()
     .register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_MAINNET_NETWORK, new ExactAvmScheme(trackedSigner))
@@ -363,6 +413,12 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   try {
     console.info("[x402][step] create_payment_payload — one payload from the existing quote");
     const paymentPayload = await client.createPaymentPayload(args.quote.raw);
+    console.info("[x402][sdk] createPaymentPayload response", paymentPayload);
+    const invalidPayload = describeInvalidSdkPayload(paymentPayload);
+    if (invalidPayload) {
+      console.error("[x402][sdk] unexpected createPaymentPayload response", paymentPayload);
+      throw new Error(invalidPayload);
+    }
     paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
     console.info("[x402][step] payload_created", {
       x402Version: paymentPayload.x402Version,
