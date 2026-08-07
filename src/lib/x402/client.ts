@@ -191,6 +191,13 @@ export type PayResult =
   | { type: "success"; deck: Deck; settlement: PaymentSettlement | null }
   | { type: "error"; message: string };
 
+interface GenerateDeckResponse {
+  success?: boolean;
+  deck?: Deck;
+  message?: string;
+  error?: string;
+}
+
 /**
  * Pays the x402 invoice with the connected Algorand wallet and returns the deck.
  *
@@ -371,9 +378,9 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   console.info("[x402] facilitator verification and Algorand settlement response received");
 
   const responseText = await response.text().catch(() => "");
-  let body: { success?: boolean; deck?: Deck; message?: string; error?: string } | null = null;
+  let body: GenerateDeckResponse | null = null;
   try {
-    body = responseText ? (JSON.parse(responseText) as typeof body) : null;
+    body = responseText ? (JSON.parse(responseText) as GenerateDeckResponse) : null;
   } catch {
     console.error("[x402] backend returned a non-JSON response", {
       status: response.status,

@@ -336,7 +336,16 @@ export async function withX402(
     }
 
     console.info("[x402-server] Algorand settlement confirmed", JSON.stringify({ requestId }));
-    await options.onSettled?.(result);
+    try {
+      await options.onSettled?.(result);
+    } catch (error) {
+      // Settlement is already final; a best-effort replay-cache failure must not
+      // turn a confirmed payment into an error response.
+      console.error("[x402-server] post-settlement completion hook failed", JSON.stringify({
+        requestId,
+        details: toSafeLogValue(error),
+      }));
+    }
 
     return jsonResponse(result.body, result.status ?? 200, {
       ...settle.headers,
