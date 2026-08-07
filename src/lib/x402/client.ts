@@ -322,6 +322,13 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
       error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
     // Surface the underlying failure in the console for diagnostics.
     console.error("[x402] payment failed", error);
+    if (isPendingWalletRequest(message)) {
+      return {
+        type: "error",
+        message:
+          "Your wallet already has a pending transaction request. Open Pera and approve or reject it, then try again.",
+      };
+    }
     if (/reject|cancel|denied|closed/i.test(message)) {
       return { type: "error", message: "You cancelled the payment in your wallet." };
     }
