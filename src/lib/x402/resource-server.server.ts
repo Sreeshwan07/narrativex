@@ -314,28 +314,32 @@ export async function withX402(
   console.info("[x402-server] request received", JSON.stringify({
     requestId,
     path: context.path,
+    // Origin/host are logged so a published-only failure can be told apart
+    // from a preview one in the worker logs.
+    host: new URL(request.url).host,
+    origin: adapter.getHeader("origin") ?? "same-origin",
+    resourceUrl: request.url,
     hasPayment: Boolean(context.paymentHeader),
   }));
 
   const httpServer = getResourceServer(options.routePattern, config);
 
-  if (cached && !cached.initialized) {
-    try {
-      await httpServer.initialize();
-      cached.initialized = true;
-    } catch (error) {
-      const facilitatorError = getFacilitatorResponseError(error);
-      logX402Failure("initialization", config, facilitatorError ?? error);
-      return jsonResponse(
-        {
-          error: "facilitator_unavailable",
-          message:
-            facilitatorError?.message ??
-            "The x402 facilitator could not be reached. Payment cannot be verified right now.",
-        },
-        502,
-      );
-    }
+  try {
+    // Cold published isolates initialise on nearly every request; a single
+    // in-flight promise stops concurrent requests from racing the handshake.
+    await ensureInitialized(httpServer);
+  } catch (error) {
+    const facilitatorError = getFacilitatorResponseError(error);
+    logX402Failure("initialization", config, facilitatorError ?? error);
+    return jsonResponse(
+      {
+        error: "facilitator_unavailable",
+        message:
+          facilitatorError?.message ??
+          "The x402 facilitator could not be reached. Payment cannot be verified right now.",
+      },
+      502,
+    );
   }
 
   let processed;
