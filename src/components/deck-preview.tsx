@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileText, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SlideCanvas } from "@/components/slide-canvas";
-import { SectionHeading } from "@/components/primitives";
+import { Chip, SectionHeading } from "@/components/primitives";
 import { DECK_SIZE, type Deck } from "@/lib/deck/schema";
+import { getDeckLength, getDeckStyle } from "@/lib/deck/styles";
 import { cn } from "@/lib/utils";
 
 function ScaledSlide({ children }: { children: React.ReactNode }) {
@@ -33,11 +34,13 @@ function ScaledSlide({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function DeckPreview({ deck }: { deck: Deck }) {
+export function DeckPreview({ deck, onRestyle }: { deck: Deck; onRestyle?: () => void }) {
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState<"pptx" | "pdf" | null>(null);
   const total = deck.slides.length;
   const current = deck.slides[index]!;
+  const style = getDeckStyle(deck.style);
+  const length = getDeckLength(deck.length);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -69,7 +72,23 @@ export function DeckPreview({ deck }: { deck: Deck }) {
         note="Generated from your project documentation"
       />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[190px_1fr]">
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <Chip tone="ember">{style.name}</Chip>
+        <Chip>{length.name}</Chip>
+        <Chip>{total} slides</Chip>
+        <Chip tone={deck.quality.gaps.length ? "warning" : "positive"}>
+          {deck.quality.score}% evidence-backed
+        </Chip>
+
+        {onRestyle && (
+          <Button variant="quiet" size="sm" className="ml-auto min-h-9" onClick={onRestyle}>
+            <Palette className="size-4" />
+            Try another style
+          </Button>
+        )}
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[190px_1fr]">
         <ol className="flex gap-3 overflow-x-auto pb-2 lg:max-h-[640px] lg:flex-col lg:overflow-y-auto lg:pr-2">
           {deck.slides.map((slide, i) => (
             <li key={slide.id} className="shrink-0 lg:shrink">
@@ -85,7 +104,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
                 )}
               >
                 <ScaledSlide>
-                  <SlideCanvas slide={slide} />
+                  <SlideCanvas slide={slide} styleId={deck.style} />
                 </ScaledSlide>
                 <span className="block border-t border-border px-2 py-1.5 font-mono text-[0.6rem] uppercase tracking-[0.15em] text-muted-foreground">
                   {String(slide.number).padStart(2, "0")} · {slide.title}
@@ -98,7 +117,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
         <div>
           <div className="overflow-hidden rounded-2xl border border-border shadow-lift">
             <ScaledSlide key={current.id}>
-              <SlideCanvas slide={current} />
+              <SlideCanvas slide={current} styleId={deck.style} />
             </ScaledSlide>
           </div>
 
@@ -138,6 +157,13 @@ export function DeckPreview({ deck }: { deck: Deck }) {
               </Button>
             </div>
           </div>
+
+          {deck.quality.gaps.length > 0 && (
+            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+              Slides marked as gaps ({deck.quality.gaps.join(", ")}) disclose missing evidence rather
+              than inventing figures.
+            </p>
+          )}
         </div>
       </div>
     </section>
