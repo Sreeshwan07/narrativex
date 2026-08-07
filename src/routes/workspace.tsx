@@ -331,7 +331,7 @@ function WorkspacePage() {
                       phase={phase}
                       error={payError}
                       settlement={settlement}
-                      onPay={(signer) => void pay(signer)}
+                      onPay={(signer) => pay(signer)}
                       onPhase={setPhase}
                     />
                   </AlgorandWalletProvider>
