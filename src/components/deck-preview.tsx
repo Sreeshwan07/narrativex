@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SlideCanvas } from "@/components/slide-canvas";
+import { SectionHeading } from "@/components/primitives";
 import { DECK_SIZE, type Deck } from "@/lib/deck/schema";
 import { cn } from "@/lib/utils";
 
@@ -63,10 +64,10 @@ export function DeckPreview({ deck }: { deck: Deck }) {
 
   return (
     <section className="animate-rise">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-border pb-4">
-        <span className="rule-label">Step 03 — Deck Preview</span>
-        <span className="rule-label">Generated from your project documentation</span>
-      </div>
+      <SectionHeading
+        step="Step 04 — Deck Preview"
+        note="Generated from your project documentation"
+      />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[190px_1fr]">
         <ol className="flex gap-3 overflow-x-auto pb-2 lg:max-h-[640px] lg:flex-col lg:overflow-y-auto lg:pr-2">
@@ -77,7 +78,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
                 onClick={() => setIndex(i)}
                 aria-current={i === index}
                 className={cn(
-                  "w-40 overflow-hidden rounded-lg border bg-card text-left transition-all duration-300 lg:w-full",
+                  "w-40 overflow-hidden rounded-xl border bg-card text-left transition-all duration-300 hover:-translate-y-0.5 lg:w-full",
                   i === index
                     ? "border-ember shadow-lift"
                     : "border-border opacity-70 hover:opacity-100",
@@ -95,7 +96,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
         </ol>
 
         <div>
-          <div className="overflow-hidden rounded-xl border border-border shadow-lift">
+          <div className="overflow-hidden rounded-2xl border border-border shadow-lift">
             <ScaledSlide key={current.id}>
               <SlideCanvas slide={current} />
             </ScaledSlide>
@@ -106,7 +107,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
               <Button
                 variant="quiet"
                 size="sm"
-                aria-label="Previous slide"
+                aria-label="Previous slide" className="min-h-11 min-w-11"
                 disabled={index === 0}
                 onClick={() => setIndex((i) => Math.max(i - 1, 0))}
               >
@@ -118,7 +119,7 @@ export function DeckPreview({ deck }: { deck: Deck }) {
               <Button
                 variant="quiet"
                 size="sm"
-                aria-label="Next slide"
+                aria-label="Next slide" className="min-h-11 min-w-11"
                 disabled={index === total - 1}
                 onClick={() => setIndex((i) => Math.min(i + 1, total - 1))}
               >
@@ -127,11 +128,11 @@ export function DeckPreview({ deck }: { deck: Deck }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button variant="ink" disabled={busy !== null} onClick={() => handleExport("pptx")}>
+              <Button variant="ink" size="lg" className="min-h-11" disabled={busy !== null} onClick={() => handleExport("pptx")}>
                 <Download className="size-4" />
-                {busy === "pptx" ? "Building…" : "Download PPTX"}
+                {busy === "pptx" ? "Building…" : "Download Pitch Deck (PPTX)"}
               </Button>
-              <Button variant="quiet" disabled={busy !== null} onClick={() => handleExport("pdf")}>
+              <Button variant="quiet" size="lg" className="min-h-11" disabled={busy !== null} onClick={() => handleExport("pdf")}>
                 <FileText className="size-4" />
                 {busy === "pdf" ? "Building…" : "Download PDF"}
               </Button>

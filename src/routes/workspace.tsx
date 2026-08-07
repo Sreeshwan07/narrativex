@@ -4,7 +4,15 @@ import { ClientOnly } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ExternalLink, Sparkles } from "lucide-react";
+import {
+  ExternalLink,
+  FileCode2,
+  Presentation,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { Chip, Panel, StateCard, StatusDot } from "@/components/primitives";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SourceComposer } from "@/components/source-composer";
 import { AnalysisProgress } from "@/components/analysis-progress";
@@ -169,17 +177,33 @@ function WorkspacePage() {
   const paying = ["WALLET_PENDING", "SUBMITTING_PAYMENT", "VERIFYING_PAYMENT"].includes(phase);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
-        <div className="animate-rise">
-          <span className="rule-label">Step 01 — Source</span>
-          <h1 className="mt-3 text-4xl sm:text-5xl">Bring your documentation.</h1>
-          <p className="mt-3 max-w-xl text-muted-foreground">
-            Drop a README, or paste any technical write-up. PitchForge reads the substance and
-            rewrites it as a narrative investors follow.
+      <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-6 sm:py-14">
+        {/* Hero */}
+        <section className="animate-rise">
+          <Chip tone="ember" dot>
+            Step 01 — Source
+          </Chip>
+          <h1 className="mt-5 max-w-3xl text-4xl leading-[1.08] sm:text-5xl">
+            Turn your README into an investor-ready pitch.
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            PitchForge analyzes your existing product evidence and transforms it into a structured
+            investor narrative — without inventing traction or claims.
           </p>
-        </div>
+
+          <div className="mt-7 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
+            {TRUST_ROW.map((item) => (
+              <div key={item.label} className="flex items-center gap-2.5 bg-card px-4 py-3">
+                <item.icon className="size-3.5 shrink-0 text-ember" aria-hidden="true" />
+                <span className="truncate font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <div className="mt-10 animate-rise" style={{ animationDelay: "80ms" }}>
           <SourceComposer
@@ -197,6 +221,17 @@ function WorkspacePage() {
           </div>
         )}
 
+        {analysis.isError && !analysis.isPending && (
+          <div className="mt-10">
+            <StateCard
+              kind="error"
+              title="Analysis failed"
+              what={analysis.error?.message || "Your documentation could not be analysed."}
+              next="Check the content length and try again, or paste a more complete README."
+            />
+          </div>
+        )}
+
         {(requesting || paying) && (
           <div className="mt-10">
             <AnalysisProgress
@@ -208,26 +243,48 @@ function WorkspacePage() {
         )}
 
         {showDeck && (
-          <div className="mt-14">
-            {settlement && (
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface px-5 py-4">
-                <div>
-                  <span className="rule-label">Payment settled — {settlement.network}</span>
-                  <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
-                    {settlement.transactionId}
+          <div className="mt-14 space-y-6">
+            <Panel className="overflow-hidden border-chart-3/30 animate-rise">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface/60 px-6 py-4">
+                <div className="flex items-center gap-2.5">
+                  <StatusDot tone="positive" />
+                  <span className="rule-label">Deck ready</span>
+                </div>
+                <Chip tone="positive">Generated</Chip>
+              </div>
+              <div className="grid gap-5 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="min-w-0">
+                  <p className="font-display text-3xl">Your investor-ready pitch has been forged.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Download it below, or start a new generation from the same documentation.
                   </p>
                 </div>
-                <a
-                  className="flex items-center gap-2 font-mono text-xs text-ember underline underline-offset-4"
-                  href={explorerTxUrl(settlement.transactionId, settlement.network)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View on Algorand Explorer
-                  <ExternalLink className="size-3" />
-                </a>
+                <Button variant="quiet" className="min-h-11 w-full lg:w-auto" onClick={resetPayment}>
+                  <RotateCcw className="size-4" />
+                  Generate another deck
+                </Button>
               </div>
-            )}
+              {settlement && (
+                <div className="grid gap-3 border-t border-border px-6 py-4 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div className="min-w-0">
+                    <span className="rule-label">Payment settled — {settlement.network}</span>
+                    <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                      {settlement.transactionId}
+                    </p>
+                  </div>
+                  <a
+                    className="flex items-center gap-2 font-mono text-xs text-ember underline underline-offset-4"
+                    href={explorerTxUrl(settlement.transactionId, settlement.network)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on Algorand Explorer
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              )}
+            </Panel>
+
             <DeckPreview deck={deck} />
           </div>
         )}
@@ -254,29 +311,41 @@ function WorkspacePage() {
                 </ClientOnly>
               </div>
             ) : (
-              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-6 shadow-paper">
-                <div>
-                  <p className="font-display text-2xl">Ready to forge the deck.</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Ten investor slides, built from the evidence above — nothing invented. Payment
-                    is requested by the server before anything is generated.
+              <Panel className="mt-8 grid gap-5 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div className="min-w-0">
+                  <span className="rule-label">Step 03 — Generate</span>
+                  <p className="mt-2 font-display text-2xl sm:text-3xl">Ready to forge the deck.</p>
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                    Ten investor slides, built from the evidence above — nothing invented. Payment is
+                    requested by the server before anything is generated.
                   </p>
-                  {payError && <p className="mt-2 text-sm text-destructive">{payError}</p>}
                 </div>
                 <Button
                   variant="ink"
+                  size="xl"
+                  className="min-h-12 w-full lg:w-auto"
                   disabled={requesting}
                   onClick={() => void startGeneration(analysis.data)}
                 >
                   <Sparkles className="size-4" />
                   {requesting ? "Preparing…" : "Generate Pitch Deck"}
                 </Button>
-              </div>
+                {payError && (
+                  <div className="lg:col-span-2">
+                    <StateCard
+                      kind="error"
+                      title="Request failed"
+                      what={payError}
+                      next="Retry the request. If it persists, the payment service may be temporarily unavailable."
+                    />
+                  </div>
+                )}
+              </Panel>
             )}
           </>
         )}
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-6">
+        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-6">
           <span className="rule-label">Pay-per-generation • x402 • Algorand TestNet</span>
           <span className="text-xs text-muted-foreground">
             No account required. You pay only when a deck is produced.
@@ -287,3 +356,11 @@ function WorkspacePage() {
     </div>
   );
 }
+
+const TRUST_ROW = [
+  { label: "README evidence", icon: FileCode2 },
+  { label: "AI analysis", icon: Sparkles },
+  { label: "Investor narrative", icon: Presentation },
+  { label: "x402 payment", icon: ShieldCheck },
+] as const;
+

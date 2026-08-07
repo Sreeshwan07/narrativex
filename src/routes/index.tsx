@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, FileCode2, Presentation, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { Chip, Panel } from "@/components/primitives";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,16 +27,18 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader />
 
       <main className="flex-1">
         <section className="relative overflow-hidden border-b border-border">
           <div className="pointer-events-none absolute inset-0 paper-grid [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
-          <div className="relative mx-auto grid max-w-6xl gap-14 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
+          <div className="relative mx-auto grid max-w-6xl gap-14 px-5 py-20 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
             <div className="animate-rise">
-              <span className="rule-label">Documentation → Narrative</span>
-              <h1 className="mt-5 text-5xl leading-[1.05] sm:text-6xl">
+              <Chip tone="ember" dot>
+                Documentation → Narrative
+              </Chip>
+              <h1 className="mt-6 text-5xl leading-[1.04] sm:text-6xl">
                 Your README is technical.
                 <br />
                 <span className="italic text-ember">Your pitch shouldn't be.</span>
@@ -46,16 +49,20 @@ function Landing() {
                 capital understands.
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-3">
-                <Button asChild variant="ink" size="xl">
+                <Button asChild variant="ink" size="xl" className="min-h-12">
                   <Link to="/workspace">
                     Generate Pitch Deck <ArrowRight className="size-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="quiet" size="xl">
+                <Button asChild variant="quiet" size="xl" className="min-h-12">
                   <Link to="/workspace">Upload README or paste docs</Link>
                 </Button>
               </div>
-              <p className="mt-6 rule-label">Pay-per-generation • x402 • Algorand</p>
+              <div className="mt-8 flex flex-wrap gap-2">
+                <Chip>x402</Chip>
+                <Chip>Algorand TestNet</Chip>
+                <Chip>0.10 USDC per deck</Chip>
+              </div>
             </div>
 
             <div className="animate-fade" style={{ animationDelay: "120ms" }}>
@@ -64,17 +71,17 @@ function Landing() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-6 py-20">
-          <div className="grid gap-10 sm:grid-cols-3">
+        <section className="mx-auto max-w-6xl px-5 py-20 sm:px-6">
+          <div className="grid gap-5 sm:grid-cols-3">
             {STEPS.map((step, i) => (
-              <div key={step.title} className="border-t border-border pt-5">
+              <Panel key={step.title} interactive className="p-6">
                 <div className="flex items-center gap-3">
                   <step.icon className="size-4 text-ember" />
                   <span className="rule-label">Step {String(i + 1).padStart(2, "0")}</span>
                 </div>
-                <h2 className="mt-3 text-2xl">{step.title}</h2>
+                <h2 className="mt-4 text-2xl">{step.title}</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-              </div>
+              </Panel>
             ))}
           </div>
         </section>
@@ -84,6 +91,7 @@ function Landing() {
     </div>
   );
 }
+
 
 const STEPS = [
   {
