@@ -24,6 +24,7 @@ RULES — these are absolute:
 3. market_opportunity: if the documentation contains quantitative market data (market size, spend, segment figures), summarise it and set market_data_available to true. Otherwise write a qualitative opportunity statement grounded in the described problem and users, and set market_data_available to false. Never state a figure to justify the opportunity.
 4. traction and business_model: category C unless the documentation states them. Empty is always better than invented.
 5. confidence_notes: brief notes (under 20 words each) for sections that were incomplete or inferred — e.g. "Business model inferred from open-source positioning; not stated." Leave empty when everything was explicit.
+5b. investor_questions: exactly 3 concise questions (under 18 words each) an investor would most likely ask about THIS project — target the weakest or least-evidenced parts of the pitch. Never phrase them as claims.
 6. You may rephrase technical language into clear, confident, investor-friendly prose — rewriting is allowed, inventing is not.
 7. Keep prose fields concise: 1-3 sentences. Keep list items short (under 15 words each), maximum 6 items per list.
 8. Do not include markdown, code fences, or commentary — only the structured fields.`;
@@ -56,6 +57,7 @@ function normalize(pitch: Pitch): Pitch {
     technology: clampList(pitch.technology, 10),
     roadmap: clampList(pitch.roadmap),
     confidence_notes: clampList(pitch.confidence_notes),
+    investor_questions: clampList(pitch.investor_questions, 3),
   };
 }
 
