@@ -173,6 +173,7 @@ export function PaymentPanel({
               </p>
               <button
                 type="button"
+                disabled={busy}
                 className="mt-1.5 rounded font-mono text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
                 onClick={() => activeWallet?.disconnect()}
               >

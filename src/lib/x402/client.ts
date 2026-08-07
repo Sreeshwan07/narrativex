@@ -398,15 +398,15 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
     });
     return {
       type: "error",
-      message: describePaymentError(
-        backendDetail,
-        backendDetail || `Payment request failed with HTTP ${response.status}.`,
-      ),
+      message: backendDetail
+        ? `Payment request failed (HTTP ${response.status}): ${backendDetail.slice(0, 500)}`
+        : `Payment request failed with HTTP ${response.status}.`,
     };
   }
 
   let settlement: PaymentSettlement | null = null;
-  const settleHeader = response.headers.get("PAYMENT-RESPONSE");
+  const settleHeader =
+    response.headers.get("PAYMENT-RESPONSE") ?? response.headers.get("X-PAYMENT-RESPONSE");
   if (settleHeader) {
     try {
       const decoded = decodePaymentResponseHeader(settleHeader);
