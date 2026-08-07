@@ -63,13 +63,13 @@ const PHASE_STAGE: Partial<Record<PaymentPhase, number>> = {
 export const Route = createFileRoute("/workspace")({
   head: () => ({
     meta: [
-      { title: "Workspace — Turn a README into a pitch deck | PitchForge" },
+      { title: "Workspace — Turn a README into a pitch deck | NarrativeX" },
       {
         name: "description",
         content:
           "Upload a README or paste documentation, review the extracted pitch, and pay $0.10 USDC on Algorand TestNet to generate a 10-slide investor deck.",
       },
-      { property: "og:title", content: "PitchForge Workspace" },
+      { property: "og:title", content: "NarrativeX Workspace" },
       {
         property: "og:description",
         content: "Upload a README or paste docs and generate an investor-ready deck.",
@@ -189,7 +189,7 @@ function WorkspacePage() {
             Turn your README into an investor-ready pitch.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            PitchForge analyzes your existing product evidence and transforms it into a structured
+            NarrativeX analyzes your existing product evidence and transforms it into a structured
             investor narrative — without inventing traction or claims.
           </p>
 

@@ -63,7 +63,7 @@ export function describePaymentError(reason: string | undefined, fallback: strin
   if (r.includes("network_mismatch") || r.includes("network"))
     return "Your wallet is connected to the wrong Algorand network. Switch to TestNet and try again.";
   if (r.includes("asset")) return "The payment asset did not match TestNet USDC.";
-  if (r.includes("receiver")) return "The payment receiver did not match the configured PitchForge address.";
+  if (r.includes("receiver")) return "The payment receiver did not match the configured NarrativeX address.";
   if (r.includes("expired") || r.includes("timeout"))
     return "The payment authorization expired before it could be settled. Please try again.";
   if (r.includes("signature") || r.includes("not_signed"))
