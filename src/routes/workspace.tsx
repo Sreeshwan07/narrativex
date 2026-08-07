@@ -127,6 +127,9 @@ function WorkspacePage() {
   });
 
   const deckOptions: DeckOptions = { style: deckStyle, length: deckLength };
+  const recommendation = analysis.data
+    ? recommendStyle(analysis.data)
+    : { style: "modern-startup" as DeckStyleId, reason: "Choose the presentation format for your deck." };
 
   /** Step 1 of the paid flow: ask the server for the deck and expect HTTP 402. */
   const startGeneration = async (pitch: Pitch) => {
