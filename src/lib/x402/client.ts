@@ -226,8 +226,40 @@ function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
   return null;
 }
 
+/**
+ * Single in-flight payment guard. Pera (and every WalletConnect wallet) allows
+ * exactly one pending transaction request; a second one fails with code 4100.
+ */
+let inFlightPayment: Promise<PayResult> | null = null;
+
+/** True while a wallet payment request is still pending. */
+export function isPaymentInFlight(): boolean {
+  return inFlightPayment !== null;
+}
+
+/** Recognises Pera's "another request in progress" error (code 4100). */
+function isPendingWalletRequest(message: string): boolean {
+  return /\b4100\b/.test(message) || /another transaction request in progress/i.test(message);
+}
+
 export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayResult> {
+  if (inFlightPayment) {
+    console.warn("[x402] payment already in flight — awaiting the existing request");
+    return inFlightPayment;
+  }
+  const run = runPayment(args);
+  inFlightPayment = run;
+  try {
+    return await run;
+  } finally {
+    inFlightPayment = null;
+    console.info("[x402] payment lifecycle finished");
+  }
+}
+
+async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   const { pitch, options, idempotencyKey, signer, onPhase } = args;
+  console.info("[x402] payment lifecycle started", { idempotencyKey, payer: signer?.address });
 
   const trackedSigner: ClientAvmSigner = {
     address: signer.address,
@@ -290,6 +322,13 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
       error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
     // Surface the underlying failure in the console for diagnostics.
     console.error("[x402] payment failed", error);
+    if (isPendingWalletRequest(message)) {
+      return {
+        type: "error",
+        message:
+          "Your wallet already has a pending transaction request. Open Pera and approve or reject it, then try again.",
+      };
+    }
     if (/reject|cancel|denied|closed/i.test(message)) {
       return { type: "error", message: "You cancelled the payment in your wallet." };
     }

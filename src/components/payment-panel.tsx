@@ -19,7 +19,7 @@ interface PaymentPanelProps {
   phase: PaymentPhase;
   error: string | null;
   settlement: PaymentSettlement | null;
-  onPay: (signer: ClientAvmSigner) => void;
+  onPay: (signer: ClientAvmSigner) => void | Promise<void>;
   onPhase: (phase: PaymentPhase) => void;
 }
 
@@ -39,7 +39,8 @@ export function PaymentPanel({
 }: PaymentPanelProps) {
   const { wallets, activeAddress, activeWallet, signTransactions } = useWallet();
   const [connecting, setConnecting] = useState<string | null>(null);
-  const busy = BUSY.includes(phase);
+  const [pending, setPending] = useState(false);
+  const busy = pending || BUSY.includes(phase);
   const sameAccount = Boolean(activeAddress) && activeAddress === quote.payTo;
 
   const handleConnect = async (walletId: string) => {
@@ -57,12 +58,20 @@ export function PaymentPanel({
     }
   };
 
-  const handlePay = () => {
-    if (!activeAddress) return;
-    onPay({
-      address: activeAddress,
-      signTransactions: (txns, indexes) => signTransactions(txns, indexes),
-    });
+  const handlePay = async () => {
+    // One wallet request at a time: Pera rejects concurrent requests (4100).
+    if (!activeAddress || pending) return;
+    setPending(true);
+    console.info("[x402] pay clicked — request locked", { payer: activeAddress });
+    try {
+      await onPay({
+        address: activeAddress,
+        signTransactions: (txns, indexes) => signTransactions(txns, indexes),
+      });
+    } finally {
+      setPending(false);
+      console.info("[x402] pay request unlocked");
+    }
   };
 
   return (
@@ -173,14 +182,18 @@ export function PaymentPanel({
               size="xl"
               disabled={busy}
               className="w-full min-h-12 lg:w-auto"
-              onClick={handlePay}
+              onClick={() => void handlePay()}
             >
               {busy ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <ShieldCheck className="size-4" />
               )}
-              {busy ? PAYMENT_PHASE_LABEL[phase] : `Pay ${quote.amountLabel} & Generate Deck`}
+              {busy
+                ? BUSY.includes(phase)
+                  ? PAYMENT_PHASE_LABEL[phase]
+                  : PAYMENT_PHASE_LABEL.WALLET_PENDING
+                : `Pay ${quote.amountLabel} & Generate Deck`}
             </Button>
           </div>
         )}
