@@ -12,4 +12,19 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    // @algorandfoundation/algokit-utils (pulled in by @x402/avm) does
+    // `import { Buffer } from "buffer"` inside its codecs. In the browser that
+    // specifier resolves to an empty stub, so `Buffer` is undefined and the
+    // Algorand transaction decoder fails with
+    // "Cannot read properties of undefined (reading 'from')".
+    // Map it to the userland `buffer` package so the codecs work client-side.
+    resolve: {
+      alias: {
+        buffer: "buffer/",
+        "node:buffer": "buffer/",
+      },
+    },
+    optimizeDeps: { include: ["buffer"] },
+  },
 });
