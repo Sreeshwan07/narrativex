@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      deck_receipts: {
+        Row: {
+          created_at: string
+          deck: Json
+          idempotency_key: string
+        }
+        Insert: {
+          created_at?: string
+          deck: Json
+          idempotency_key: string
+        }
+        Update: {
+          created_at?: string
+          deck?: Json
+          idempotency_key?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
