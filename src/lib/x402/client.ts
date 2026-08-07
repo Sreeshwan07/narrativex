@@ -329,20 +329,29 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
 
   const httpClient = new x402HTTPClient(client);
 
+  let step = "create_payment_payload";
   let response: Response;
+  let paymentHeaders: Record<string, string> = {};
   try {
-    console.info("[x402] creating one payment payload from the existing quote");
+    console.info("[x402][step] create_payment_payload — one payload from the existing quote");
     const paymentPayload = await client.createPaymentPayload(args.quote.raw);
-    const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
-    console.info("[x402] payment payload created", {
+    paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
+    console.info("[x402][step] payload_created", {
       x402Version: paymentPayload.x402Version,
       payer: signer.address,
       network: args.quote.requirements.network,
       paymentHeaderNames: Object.keys(paymentHeaders),
+      paymentHeaderLengths: Object.fromEntries(
+        Object.entries(paymentHeaders).map(([k, v]) => [k, String(v).length]),
+      ),
     });
 
+    step = "submit_paid_request";
     onPhase("SUBMITTING_PAYMENT");
-    console.info("[x402] submitting signed payment to protected deck endpoint");
+    console.info("[x402][step] submit_paid_request", {
+      url: new URL(GENERATE_DECK_PATH, window.location.origin).toString(),
+      headers: Object.keys({ "content-type": "", "Idempotency-Key": "", ...paymentHeaders }),
+    });
     response = await fetch(GENERATE_DECK_PATH, {
       method: "POST",
       headers: {
@@ -352,12 +361,15 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
       },
       body: JSON.stringify({ pitch, options }),
     });
-    console.info("[x402] protected endpoint responded", { status: response.status });
+    console.info("[x402][step] response_received", {
+      status: response.status,
+      hasPaymentRequiredHeader: Boolean(response.headers.get("PAYMENT-REQUIRED")),
+      hasPaymentResponseHeader: Boolean(response.headers.get("PAYMENT-RESPONSE")),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
-    // Surface the underlying failure in the console for diagnostics.
-    console.error("[x402] payment failed", error);
+    console.error(`[x402][step] FAILED at ${step}`, error);
     if (isPendingWalletRequest(message)) {
       return {
         type: "error",
@@ -370,39 +382,54 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
     }
     return {
       type: "error",
-      message: describePaymentError(message, "The payment could not be completed."),
+      message: `${describePaymentError(message, "The payment could not be completed.")} (step: ${step})`,
     };
   }
 
+  step = "verify_and_settle";
   onPhase("VERIFYING_PAYMENT");
-  console.info("[x402] facilitator verification and Algorand settlement response received");
+  console.info("[x402][step] verify_and_settle — awaiting facilitator + Algorand settlement");
 
   const responseText = await response.text().catch(() => "");
   let body: GenerateDeckResponse | null = null;
   try {
     body = responseText ? (JSON.parse(responseText) as GenerateDeckResponse) : null;
   } catch {
-    console.error("[x402] backend returned a non-JSON response", {
+    console.error("[x402][step] backend returned a non-JSON response", {
       status: response.status,
       body: responseText.slice(0, 500),
     });
   }
 
   if (!response.ok || !body?.success || !body.deck) {
-    const backendDetail = body?.message ?? body?.error ?? responseText.trim();
-    console.error("[x402] payment or generation rejected", {
+    // A second 402 means the facilitator rejected the signed payload (or a
+    // proxy stripped the signature header). The real reason travels base64 in
+    // PAYMENT-REQUIRED, so decode it rather than reporting a generic failure.
+    const challengeReason = decodeChallengeError(response);
+    const backendDetail = body?.message ?? body?.error ?? challengeReason ?? responseText.trim();
+    console.error("[x402][step] FAILED at verify_and_settle", {
       status: response.status,
       error: body?.error,
       message: body?.message,
+      challengeReason,
+      sentPaymentHeaders: Object.keys(paymentHeaders),
       response: responseText.slice(0, 500),
     });
+    if (response.status === 402 && Object.keys(paymentHeaders).length === 0) {
+      return {
+        type: "error",
+        message:
+          "The signed payment header never reached the server (it was stripped in transit). Reload and try again.",
+      };
+    }
     return {
       type: "error",
       message: backendDetail
-        ? `Payment request failed (HTTP ${response.status}): ${backendDetail.slice(0, 500)}`
-        : `Payment request failed with HTTP ${response.status}.`,
+        ? `Payment rejected at verification (HTTP ${response.status}): ${String(backendDetail).slice(0, 500)}`
+        : `Payment request failed with HTTP ${response.status} at step ${step}.`,
     };
   }
+
 
   let settlement: PaymentSettlement | null = null;
   const settleHeader =
