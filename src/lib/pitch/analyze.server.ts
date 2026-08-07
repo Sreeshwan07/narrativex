@@ -56,7 +56,7 @@ export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeR
   }
 
   const source = content.trim().slice(0, ANALYZE_LIMITS.maxChars);
-  const gateway = createLovableAiGatewayProvider(apiKey);
+  const gateway = createLovableAiGatewayProvider(apiKey, undefined, { structuredOutputs: true });
 
   try {
     // Streamed on the wire so long documents never hit the platform request timeout,
@@ -76,7 +76,6 @@ export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeR
     return { success: true, pitch: normalize(parsed.data) };
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
-      console.error("NoObjectGenerated text:", error.text, "cause:", error.cause);
       return {
         success: false,
         error: "The AI could not structure this documentation. Try a more descriptive README.",
