@@ -411,7 +411,13 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   let response: Response;
   let paymentHeaders: Record<string, string> = {};
   try {
-    console.info("[x402][step] create_payment_payload — one payload from the existing quote");
+    // Full, unmutated quote as returned by the server, logged before the SDK
+    // touches it, so an invalid facilitator response is visible verbatim.
+    console.info("[x402][step] create_payment_payload — one payload from the existing quote", {
+      quote: JSON.parse(JSON.stringify(args.quote.raw)),
+      requirements: args.quote.requirements,
+      bufferModuleAvailable: hasBuffer(),
+    });
     const paymentPayload = await client.createPaymentPayload(args.quote.raw);
     console.info("[x402][sdk] createPaymentPayload response", paymentPayload);
     const invalidPayload = describeInvalidSdkPayload(paymentPayload);
