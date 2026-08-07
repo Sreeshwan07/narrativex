@@ -12,12 +12,16 @@ export const pitchSchema = z.object({
   target_users: z.array(z.string()),
   key_features: z.array(z.string()),
   market_opportunity: z.string(),
+  /** True only when the documentation itself contains quantitative market data. */
+  market_data_available: z.boolean(),
   business_model: z.string(),
   competitive_advantage: z.array(z.string()),
   technology: z.array(z.string()),
   traction: z.string(),
   roadmap: z.array(z.string()),
   call_to_action: z.string(),
+  /** Short notes on sections that were incomplete or inferred rather than stated. */
+  confidence_notes: z.array(z.string()),
 });
 
 export type Pitch = z.infer<typeof pitchSchema>;
@@ -30,12 +34,14 @@ export const emptyPitch: Pitch = {
   target_users: [],
   key_features: [],
   market_opportunity: "",
+  market_data_available: false,
   business_model: "",
   competitive_advantage: [],
   technology: [],
   traction: "",
   roadmap: [],
   call_to_action: "",
+  confidence_notes: [],
 };
 
 export const ANALYZE_LIMITS = {
