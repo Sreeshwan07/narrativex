@@ -91,6 +91,7 @@ export function SiteHeader() {
           >
             Workspace
           </Link>
+          <AccountMenu />
         </nav>
       </div>
     </header>
