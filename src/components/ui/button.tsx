@@ -16,13 +16,20 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        ink: "bg-ink text-ink-foreground shadow-paper hover:bg-ink/90 hover:shadow-lift transition-all duration-300",
+        ember:
+          "bg-ember text-ember-foreground shadow-paper hover:bg-ember/90 hover:shadow-lift transition-all duration-300",
+        quiet:
+          "border border-border bg-card text-foreground hover:border-foreground/30 hover:bg-surface transition-all duration-300",
       },
       size: {
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
+        xl: "h-12 rounded-md px-7 text-[0.95rem]",
         icon: "h-9 w-9",
       },
+
     },
     defaultVariants: {
       variant: "default",
