@@ -1,3 +1,5 @@
+// Must run before any @x402 module: installs Buffer for the browser.
+import "@/lib/x402/buffer-polyfill";
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from "@x402/core/http";
 import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
@@ -13,6 +15,7 @@ import {
 /** Full-genesis-hash network ids, matching what the facilitator advertises. */
 const ALGORAND_MAINNET_NETWORK = `algorand:${ALGORAND_MAINNET_GENESIS_HASH}`;
 const ALGORAND_TESTNET_NETWORK = `algorand:${ALGORAND_TESTNET_GENESIS_HASH}`;
+import { hasBuffer } from "@/lib/x402/buffer-polyfill";
 import { GENERATE_DECK_PATH, describePaymentError, type PaymentPhase } from "@/lib/x402/shared";
 import type { Deck } from "@/lib/deck/schema";
 
@@ -198,18 +201,70 @@ export type PayResult =
  * @param args - Pitch payload, idempotency key, wallet signer and phase callback.
  * @returns The generated deck with its real settlement transaction, or an error.
  */
+/**
+ * Verifies every object the x402 payload builder dereferences, naming the exact
+ * one that is missing rather than throwing a generic TypeError.
+ *
+ * @param args - Payment arguments handed to {@link payAndGenerateDeck}.
+ * @returns A specific error message, or null when all inputs are present.
+ */
+function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
+  const { quote, signer } = args;
+  if (!quote) return "Payment payload error: the payment quote is missing. Re-run the analysis.";
+  const req = quote.requirements as PaymentRequirements | undefined;
+  if (!req) return "Payment payload error: the server sent no payment requirements.";
+  if (!req.payTo) return "Payment payload error: the payment requirements have no receiver (payTo).";
+  if (!req.network) return "Payment payload error: the payment requirements have no network.";
+  if (req.asset === undefined || req.asset === null)
+    return "Payment payload error: the payment requirements have no asset id.";
+  if (!req.amount) return "Payment payload error: the payment requirements have no amount.";
+  if (!signer) return "Payment payload error: no wallet signer is available. Reconnect your wallet.";
+  if (!signer.address)
+    return "Payment payload error: the connected wallet did not expose an account address. Reconnect your wallet.";
+  if (typeof signer.signTransactions !== "function")
+    return "Payment payload error: the connected wallet cannot sign transactions. Reconnect your wallet.";
+  return null;
+}
+
 export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayResult> {
   const { pitch, options, idempotencyKey, signer, onPhase } = args;
 
   const trackedSigner: ClientAvmSigner = {
     address: signer.address,
     signTransactions: async (txns, indexes) => {
+      if (!txns || txns.length === 0) {
+        throw new Error("Payment payload error: x402 produced no Algorand transaction to sign.");
+      }
+      console.info("[x402] transactions to sign", txns.length, "indexes", indexes);
       onPhase("WALLET_PENDING");
       const signed = await signer.signTransactions(txns, indexes);
       onPhase("SUBMITTING_PAYMENT");
       return signed;
     },
   };
+
+  // Fail loudly and specifically instead of letting an undefined object
+  // surface as "Cannot read properties of undefined".
+  const missing = describeMissingPaymentInputs(args);
+  if (missing) return { type: "error", message: missing };
+
+  if (!hasBuffer()) {
+    return {
+      type: "error",
+      message:
+        "This browser is missing the Buffer runtime required to encode the Algorand payment. Reload the page and try again.",
+    };
+  }
+
+  console.info("[x402] payment payload inputs", {
+    payer: signer.address,
+    payTo: args.quote.requirements.payTo,
+    network: args.quote.requirements.network,
+    asset: args.quote.requirements.asset,
+    amount: args.quote.requirements.amount,
+    scheme: args.quote.requirements.scheme,
+    hasBuffer: hasBuffer(),
+  });
 
   const blocked = await preflightPayer(args.quote.requirements, signer.address);
   if (blocked) return { type: "error", message: blocked };
