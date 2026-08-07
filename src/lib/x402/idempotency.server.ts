@@ -1,10 +1,14 @@
 /**
- * In-memory idempotency store.
+ * Idempotency / replay store for paid deck generations.
  *
- * Protects against duplicate deck generation (and duplicate charges) when a
- * client retries a request it already paid for. Intentionally process-local:
- * the MVP has no database, and a lost cache only means the user is asked to
- * pay again for a *new* generation, never that a paid deck is lost mid-flight.
+ * Preview runs a single long-lived Node process, so a module-level Map was
+ * enough. The published site runs on short-lived, horizontally-scaled workers:
+ * a retry almost always lands on a *different* isolate with an empty Map, so
+ * an already-paid generation would ask the user to pay again (and the
+ * facilitator would reject the replayed payload). The durable store below
+ * makes the published behaviour identical to preview.
+ *
+ * The in-memory layer is kept as a fast path for same-isolate retries.
  */
 
 interface Entry<T> {
@@ -30,7 +34,7 @@ function prune() {
 }
 
 /**
- * Reads a previously completed result for an idempotency key.
+ * Fast, process-local lookup.
  *
  * @param key - Client-supplied idempotency key.
  * @returns The stored value, or undefined when unknown/expired.
@@ -42,7 +46,7 @@ export function getCompleted<T>(key: string): T | undefined {
 }
 
 /**
- * Records a completed result so retries are served without a second payment.
+ * Records a completed result in memory.
  *
  * @param key - Client-supplied idempotency key.
  * @param value - The result to remember.
@@ -50,4 +54,57 @@ export function getCompleted<T>(key: string): T | undefined {
 export function setCompleted<T>(key: string, value: T): void {
   store.set(key, { value, at: Date.now() });
   prune();
+}
+
+/**
+ * Cross-isolate lookup: memory first, then the durable table. Never throws —
+ * a storage outage degrades to "not found", which is the previous behaviour.
+ *
+ * @param key - Client-supplied idempotency key.
+ * @returns The stored value, or undefined.
+ */
+export async function getCompletedDurable<T>(key: string): Promise<T | undefined> {
+  if (!key) return undefined;
+  const local = getCompleted<T>(key);
+  if (local) return local;
+
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("deck_receipts")
+      .select("deck")
+      .eq("idempotency_key", key)
+      .maybeSingle();
+    if (error || !data?.deck) return undefined;
+    const value = data.deck as T;
+    setCompleted(key, value);
+    return value;
+  } catch (error) {
+    console.error("[x402-server] durable idempotency read failed", String(error));
+    return undefined;
+  }
+}
+
+/**
+ * Records a completed result in memory *and* durably, so a retry served by a
+ * different published worker returns the paid deck instead of a new invoice.
+ *
+ * @param key - Client-supplied idempotency key.
+ * @param value - The result to remember.
+ */
+export async function setCompletedDurable<T>(key: string, value: T): Promise<void> {
+  if (!key) return;
+  setCompleted(key, value);
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("deck_receipts")
+      .upsert(
+        { idempotency_key: key, deck: value as never },
+        { onConflict: "idempotency_key" },
+      );
+    if (error) console.error("[x402-server] durable idempotency write failed", error.message);
+  } catch (error) {
+    console.error("[x402-server] durable idempotency write threw", String(error));
+  }
 }

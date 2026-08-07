@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import {
   FacilitatorResponseError,
+  FacilitatorTimeoutError,
   HTTPFacilitatorClient,
   getFacilitatorResponseError,
   withPrivateCacheControl,
@@ -83,7 +84,19 @@ class FetchAdapter implements HTTPAdapter {
 
 export class X402ConfigurationError extends Error {}
 
-let cached: { key: string; server: x402HTTPResourceServer; initialized: boolean } | null = null;
+let cached: {
+  key: string;
+  server: x402HTTPResourceServer;
+  initialized: boolean;
+  initializing: Promise<void> | null;
+} | null = null;
+
+/**
+ * Facilitator call budget. The published site runs on a serverless worker with
+ * a hard request ceiling, so a stuck facilitator must surface as a readable
+ * JSON error well before the platform kills the request with a 502/504.
+ */
+const FACILITATOR_TIMEOUT_MS = 20_000;
 
 /**
  * Builds (and memoises) the x402 HTTP resource server for the protected route.
@@ -96,7 +109,10 @@ function getResourceServer(routePattern: string, config: X402Config): x402HTTPRe
   const key = `${routePattern}|${config.network}|${config.payTo}|${config.facilitatorUrl}|${config.price}|${config.asset}`;
   if (cached?.key === key) return cached.server;
 
-  const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+  const facilitator = new HTTPFacilitatorClient({
+    url: config.facilitatorUrl,
+    timeoutMs: FACILITATOR_TIMEOUT_MS,
+  });
   const resourceServer = new x402ResourceServer(facilitator).register(
     config.network,
     new ExactAvmScheme(),
@@ -117,8 +133,31 @@ function getResourceServer(routePattern: string, config: X402Config): x402HTTPRe
     },
   });
 
-  cached = { key, server: httpServer, initialized: false };
+  cached = { key, server: httpServer, initialized: false, initializing: null };
   return httpServer;
+}
+
+/**
+ * Initialises the resource server exactly once per worker instance, even when
+ * several requests arrive together on a cold isolate (common on the published
+ * site, never seen on the single long-lived preview server).
+ *
+ * @param httpServer - The memoised resource server.
+ */
+async function ensureInitialized(httpServer: x402HTTPResourceServer): Promise<void> {
+  const entry = cached;
+  if (!entry || entry.initialized) return;
+  if (!entry.initializing) {
+    entry.initializing = httpServer
+      .initialize()
+      .then(() => {
+        entry.initialized = true;
+      })
+      .finally(() => {
+        entry.initializing = null;
+      });
+  }
+  await entry.initializing;
 }
 
 /**
@@ -276,28 +315,32 @@ export async function withX402(
   console.info("[x402-server] request received", JSON.stringify({
     requestId,
     path: context.path,
+    // Origin/host are logged so a published-only failure can be told apart
+    // from a preview one in the worker logs.
+    host: new URL(request.url).host,
+    origin: adapter.getHeader("origin") ?? "same-origin",
+    resourceUrl: request.url,
     hasPayment: Boolean(context.paymentHeader),
   }));
 
   const httpServer = getResourceServer(options.routePattern, config);
 
-  if (cached && !cached.initialized) {
-    try {
-      await httpServer.initialize();
-      cached.initialized = true;
-    } catch (error) {
-      const facilitatorError = getFacilitatorResponseError(error);
-      logX402Failure("initialization", config, facilitatorError ?? error);
-      return jsonResponse(
-        {
-          error: "facilitator_unavailable",
-          message:
-            facilitatorError?.message ??
-            "The x402 facilitator could not be reached. Payment cannot be verified right now.",
-        },
-        502,
-      );
-    }
+  try {
+    // Cold published isolates initialise on nearly every request; a single
+    // in-flight promise stops concurrent requests from racing the handshake.
+    await ensureInitialized(httpServer);
+  } catch (error) {
+    const facilitatorError = getFacilitatorResponseError(error);
+    logX402Failure("initialization", config, facilitatorError ?? error);
+    return jsonResponse(
+      {
+        error: "facilitator_unavailable",
+        message:
+          facilitatorError?.message ??
+          "The x402 facilitator could not be reached. Payment cannot be verified right now.",
+      },
+      502,
+    );
   }
 
   let processed;
@@ -395,6 +438,18 @@ export async function withX402(
     });
   } catch (error) {
     logX402Failure("settlement", config, getFacilitatorResponseError(error) ?? error);
+    if (error instanceof FacilitatorTimeoutError) {
+      // The signed group may still confirm on-chain, so never claim the user
+      // was not charged. Retrying with the same Idempotency-Key is safe.
+      return jsonResponse(
+        {
+          error: "settlement_timeout",
+          message:
+            "The Algorand settlement is taking longer than expected. Do not pay again — retry in a moment and your deck will be released once the transaction confirms.",
+        },
+        504,
+      );
+    }
     if (error instanceof FacilitatorResponseError) {
       return jsonResponse({ error: "settlement_failed", message: error.message }, 502);
     }
