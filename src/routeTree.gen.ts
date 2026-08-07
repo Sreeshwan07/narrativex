@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
+import { Route as ApiPublicGenerateDeckRouteImport } from './routes/api/public/generate-deck'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
+import { Route as ApiPublicX402StatusRouteImport } from './routes/api/public/x402-status'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +25,74 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicGenerateDeckRoute = ApiPublicGenerateDeckRouteImport.update({
+  id: '/api/public/generate-deck',
+  path: '/api/public/generate-deck',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicX402StatusRoute = ApiPublicX402StatusRouteImport.update({
+  id: '/api/public/x402-status',
+  path: '/api/public/x402-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/x402-status': typeof ApiPublicX402StatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/x402-status': typeof ApiPublicX402StatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/x402-status': typeof ApiPublicX402StatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/workspace'
+  fullPaths:
+    | '/'
+    | '/workspace'
+    | '/api/public/generate-deck'
+    | '/api/public/health'
+    | '/api/public/x402-status'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/workspace'
-  id: '__root__' | '/' | '/workspace'
+  to:
+    | '/'
+    | '/workspace'
+    | '/api/public/generate-deck'
+    | '/api/public/health'
+    | '/api/public/x402-status'
+  id:
+    | '__root__'
+    | '/'
+    | '/workspace'
+    | '/api/public/generate-deck'
+    | '/api/public/health'
+    | '/api/public/x402-status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  ApiPublicGenerateDeckRoute: typeof ApiPublicGenerateDeckRoute
+  ApiPublicHealthRoute: typeof ApiPublicHealthRoute
+  ApiPublicX402StatusRoute: typeof ApiPublicX402StatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +111,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/generate-deck': {
+      id: '/api/public/generate-deck'
+      path: '/api/public/generate-deck'
+      fullPath: '/api/public/generate-deck'
+      preLoaderRoute: typeof ApiPublicGenerateDeckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/x402-status': {
+      id: '/api/public/x402-status'
+      path: '/api/public/x402-status'
+      fullPath: '/api/public/x402-status'
+      preLoaderRoute: typeof ApiPublicX402StatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WorkspaceRoute: WorkspaceRoute,
+  ApiPublicGenerateDeckRoute: ApiPublicGenerateDeckRoute,
+  ApiPublicHealthRoute: ApiPublicHealthRoute,
+  ApiPublicX402StatusRoute: ApiPublicX402StatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
