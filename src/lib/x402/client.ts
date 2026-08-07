@@ -139,6 +139,8 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
   };
 
   const client = new x402Client()
+    .register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(trackedSigner))
+    .register(ALGORAND_MAINNET_NETWORK, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_TESTNET_CAIP2, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_MAINNET_CAIP2, new ExactAvmScheme(trackedSigner));
 
