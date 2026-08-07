@@ -66,11 +66,13 @@ function validatePaymentRequired(value: unknown):
   | { valid: true; raw: PaymentRequired; requirements: PaymentRequirements }
   | { valid: false; reason: string } {
   if (!isRecord(value)) return { valid: false, reason: "response is not a JSON object" };
-  if (value.x402Version !== 2)
-    return { valid: false, reason: `unsupported x402Version ${String(value.x402Version)}` };
-  if (!isRecord(value.resource) || typeof value.resource.url !== "string" || !value.resource.url)
+  if (value["x402Version"] !== 2)
+    return { valid: false, reason: `unsupported x402Version ${String(value["x402Version"])}` };
+  const resource = value["resource"];
+  if (!isRecord(resource) || typeof resource["url"] !== "string" || !resource["url"])
     return { valid: false, reason: "resource.url is missing" };
-  if (!Array.isArray(value.accepts) || value.accepts.length === 0)
+  const accepts = value["accepts"];
+  if (!Array.isArray(accepts) || accepts.length === 0)
     return { valid: false, reason: "accepts is missing or empty" };
 
   const supportedNetworks = new Set([
@@ -79,25 +81,26 @@ function validatePaymentRequired(value: unknown):
     ALGORAND_TESTNET_NETWORK,
     ALGORAND_MAINNET_NETWORK,
   ]);
-  const candidate = value.accepts.find((item) => {
+  const candidate = accepts.find((item) => {
     if (!isRecord(item)) return false;
-    return item.scheme === "exact" && typeof item.network === "string" && supportedNetworks.has(item.network);
+    return item["scheme"] === "exact" && typeof item["network"] === "string" && supportedNetworks.has(item["network"]);
   });
   if (!isRecord(candidate))
     return { valid: false, reason: "no supported Algorand exact payment requirement was provided" };
-  if (typeof candidate.payTo !== "string" || !isValidAlgorandAddress(candidate.payTo))
+  if (typeof candidate["payTo"] !== "string" || !isValidAlgorandAddress(candidate["payTo"]))
     return { valid: false, reason: "payTo is missing or is not a valid Algorand address" };
-  if (typeof candidate.asset !== "string" || !/^\d+$/.test(candidate.asset) || BigInt(candidate.asset) <= 0n)
+  if (typeof candidate["asset"] !== "string" || !/^\d+$/.test(candidate["asset"]) || BigInt(candidate["asset"]) <= 0n)
     return { valid: false, reason: "asset is missing or is not a positive Algorand asset id" };
-  if (typeof candidate.amount !== "string" || !/^\d+$/.test(candidate.amount) || BigInt(candidate.amount) <= 0n)
+  if (typeof candidate["amount"] !== "string" || !/^\d+$/.test(candidate["amount"]) || BigInt(candidate["amount"]) <= 0n)
     return { valid: false, reason: "amount is missing or is not a positive atomic-unit value" };
-  if (!Number.isInteger(candidate.maxTimeoutSeconds) || Number(candidate.maxTimeoutSeconds) <= 0)
+  if (!Number.isInteger(candidate["maxTimeoutSeconds"]) || Number(candidate["maxTimeoutSeconds"]) <= 0)
     return { valid: false, reason: "maxTimeoutSeconds is missing or invalid" };
-  if (!isRecord(candidate.extra))
+  const extra = candidate["extra"];
+  if (!isRecord(extra))
     return { valid: false, reason: "extra is missing or is not an object" };
   if (
-    candidate.extra.feePayer !== undefined &&
-    (typeof candidate.extra.feePayer !== "string" || !isValidAlgorandAddress(candidate.extra.feePayer))
+    extra["feePayer"] !== undefined &&
+    (typeof extra["feePayer"] !== "string" || !isValidAlgorandAddress(extra["feePayer"]))
   ) {
     return { valid: false, reason: "extra.feePayer is not a valid Algorand address" };
   }
