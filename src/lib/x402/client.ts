@@ -1,6 +1,6 @@
 // Must run before any @x402 module: installs Buffer for the browser.
 import "@/lib/x402/buffer-polyfill";
-import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { x402Client, x402HTTPClient } from "@x402/fetch";
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from "@x402/core/http";
 import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { ExactAvmScheme } from "@x402/avm/exact/client";
@@ -191,6 +191,13 @@ export type PayResult =
   | { type: "success"; deck: Deck; settlement: PaymentSettlement | null }
   | { type: "error"; message: string };
 
+interface GenerateDeckResponse {
+  success?: boolean;
+  deck?: Deck;
+  message?: string;
+  error?: string;
+}
+
 /**
  * Pays the x402 invoice with the connected Algorand wallet and returns the deck.
  *
@@ -231,6 +238,7 @@ function describeMissingPaymentInputs(args: PayAndGenerateArgs): string | null {
  * exactly one pending transaction request; a second one fails with code 4100.
  */
 let inFlightPayment: Promise<PayResult> | null = null;
+let walletSigningRequest: Promise<(Uint8Array | null)[]> | null = null;
 
 /** True while a wallet payment request is still pending. */
 export function isPaymentInFlight(): boolean {
@@ -269,9 +277,21 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
       }
       console.info("[x402] transactions to sign", txns.length, "indexes", indexes);
       onPhase("WALLET_PENDING");
-      const signed = await signer.signTransactions(txns, indexes);
-      onPhase("SUBMITTING_PAYMENT");
-      return signed;
+      if (walletSigningRequest) {
+        console.info("[x402] wallet signing request already pending — awaiting it");
+        return walletSigningRequest;
+      }
+      walletSigningRequest = signer.signTransactions(txns, indexes);
+      try {
+        const signed = await walletSigningRequest;
+        console.info("[x402] wallet approved transaction", {
+          signedTransactions: signed.filter(Boolean).length,
+        });
+        onPhase("SUBMITTING_PAYMENT");
+        return signed;
+      } finally {
+        walletSigningRequest = null;
+      }
     },
   };
 
@@ -307,16 +327,32 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
     .register(ALGORAND_TESTNET_CAIP2, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_MAINNET_CAIP2, new ExactAvmScheme(trackedSigner));
 
-  const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+  const httpClient = new x402HTTPClient(client);
 
   let response: Response;
   try {
+    console.info("[x402] creating one payment payload from the existing quote");
+    const paymentPayload = await client.createPaymentPayload(args.quote.raw);
+    const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
+    console.info("[x402] payment payload created", {
+      x402Version: paymentPayload.x402Version,
+      payer: signer.address,
+      network: args.quote.requirements.network,
+      paymentHeaderNames: Object.keys(paymentHeaders),
+    });
+
     onPhase("SUBMITTING_PAYMENT");
-    response = await fetchWithPayment(GENERATE_DECK_PATH, {
+    console.info("[x402] submitting signed payment to protected deck endpoint");
+    response = await fetch(GENERATE_DECK_PATH, {
       method: "POST",
-      headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
+      headers: {
+        "content-type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        ...paymentHeaders,
+      },
       body: JSON.stringify({ pitch, options }),
     });
+    console.info("[x402] protected endpoint responded", { status: response.status });
   } catch (error) {
     const message =
       error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
@@ -339,23 +375,38 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   }
 
   onPhase("VERIFYING_PAYMENT");
+  console.info("[x402] facilitator verification and Algorand settlement response received");
 
-  const body = (await response.json().catch(() => null)) as
-    | { success?: boolean; deck?: Deck; message?: string; error?: string }
-    | null;
+  const responseText = await response.text().catch(() => "");
+  let body: GenerateDeckResponse | null = null;
+  try {
+    body = responseText ? (JSON.parse(responseText) as GenerateDeckResponse) : null;
+  } catch {
+    console.error("[x402] backend returned a non-JSON response", {
+      status: response.status,
+      body: responseText.slice(0, 500),
+    });
+  }
 
   if (!response.ok || !body?.success || !body.deck) {
+    const backendDetail = body?.message ?? body?.error ?? responseText.trim();
+    console.error("[x402] payment or generation rejected", {
+      status: response.status,
+      error: body?.error,
+      message: body?.message,
+      response: responseText.slice(0, 500),
+    });
     return {
       type: "error",
-      message: describePaymentError(
-        body?.error ?? body?.message,
-        body?.message ?? "Payment was not accepted. You have not been charged for a deck.",
-      ),
+      message: backendDetail
+        ? `Payment request failed (HTTP ${response.status}): ${backendDetail.slice(0, 500)}`
+        : `Payment request failed with HTTP ${response.status}.`,
     };
   }
 
   let settlement: PaymentSettlement | null = null;
-  const settleHeader = response.headers.get("PAYMENT-RESPONSE");
+  const settleHeader =
+    response.headers.get("PAYMENT-RESPONSE") ?? response.headers.get("X-PAYMENT-RESPONSE");
   if (settleHeader) {
     try {
       const decoded = decodePaymentResponseHeader(settleHeader);
@@ -364,10 +415,18 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
           transactionId: decoded.transaction,
           network: networkLabel(decoded.network ?? ALGORAND_TESTNET_CAIP2),
         };
+        console.info("[x402] Algorand payment confirmed", {
+          transactionId: decoded.transaction,
+          network: decoded.network,
+        });
       }
-    } catch {
-      /* settlement details are informational only */
+    } catch (error) {
+      console.warn("[x402] payment succeeded but settlement header could not be decoded", error);
     }
+  }
+
+  if (!settleHeader) {
+    console.warn("[x402] successful response did not include PAYMENT-RESPONSE settlement details");
   }
 
   onPhase("PAYMENT_SUCCESS");

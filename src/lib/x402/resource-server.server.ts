@@ -213,6 +213,7 @@ export async function withX402(
     body: unknown;
     skipPayment?: () => boolean;
     handler: () => Promise<ProtectedHandlerResult>;
+    onSettled?: (result: ProtectedHandlerResult) => void | Promise<void>;
   },
 ): Promise<Response> {
   const config = readX402Config();
@@ -242,6 +243,12 @@ export async function withX402(
       ? { paymentHeader: adapter.getHeader("payment-signature") ?? adapter.getHeader("x-payment")! }
       : {}),
   };
+  const requestId = adapter.getHeader("idempotency-key") || "none";
+  console.info("[x402-server] request received", JSON.stringify({
+    requestId,
+    path: context.path,
+    hasPayment: Boolean(context.paymentHeader),
+  }));
 
   const httpServer = getResourceServer(options.routePattern, config);
 
@@ -291,6 +298,7 @@ export async function withX402(
   }
 
   // payment-verified — run the protected work, then settle.
+  console.info("[x402-server] facilitator verified payment", JSON.stringify({ requestId }));
   const { cancellationDispatcher, paymentPayload, paymentRequirements, declaredExtensions } =
     processed;
 
@@ -325,6 +333,18 @@ export async function withX402(
         headers: settle.response.headers,
       });
       return jsonResponse(settle.response.body, settle.response.status, settle.response.headers);
+    }
+
+    console.info("[x402-server] Algorand settlement confirmed", JSON.stringify({ requestId }));
+    try {
+      await options.onSettled?.(result);
+    } catch (error) {
+      // Settlement is already final; a best-effort replay-cache failure must not
+      // turn a confirmed payment into an error response.
+      console.error("[x402-server] post-settlement completion hook failed", JSON.stringify({
+        requestId,
+        details: toSafeLogValue(error),
+      }));
     }
 
     return jsonResponse(result.body, result.status ?? 200, {
