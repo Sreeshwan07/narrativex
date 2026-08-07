@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWallet } from "@txnlab/use-wallet-react";
-import { AlertTriangle, ExternalLink, Loader2, Lock, ShieldCheck, Wallet } from "lucide-react";
+import { ExternalLink, Loader2, Lock, ShieldCheck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip, Eyebrow, Panel, StateCard, StatusDot, shortAddress } from "@/components/primitives";
 import { explorerTxUrl, PAYMENT_PHASE_LABEL, type PaymentPhase } from "@/lib/x402/shared";
@@ -224,7 +224,7 @@ export function PaymentPanel({
 
       {/* Trust footer */}
       <div className="flex flex-wrap items-center gap-2 border-t border-border bg-surface/60 px-6 py-3.5 sm:px-8">
-        <AlertTriangle className="hidden size-3 text-muted-foreground sm:block" aria-hidden="true" />
+        <ShieldCheck className="hidden size-3 text-muted-foreground sm:block" aria-hidden="true" />
         <span className="rule-label">Secured by x402 • Settled on Algorand</span>
       </div>
     </Panel>
