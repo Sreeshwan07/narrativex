@@ -92,14 +92,22 @@ export function readX402Config(): X402Config {
  * @returns A JSON-safe status object with no secret values.
  */
 export function toPublicStatus(config: X402Config) {
+  const receiverConfigured =
+    Boolean(config.payTo) && !config.missing.some((m) => m.startsWith("AVM_ADDRESS"));
   return {
     configured: config.missing.length === 0,
+    x402Configured: config.missing.length === 0,
     network: config.networkLabel,
     networkId: config.network,
+    algorandTestnetConfigured: config.networkLabel === "Algorand TestNet",
     price: config.price,
     asset: config.assetLabel,
-    receiverConfigured: Boolean(config.payTo) && !config.missing.some((m) => m.startsWith("AVM_ADDRESS")),
-    facilitatorConfigured: Boolean(config.facilitatorUrl),
+    assetId: config.asset,
+    paymentAssetConfigured: Boolean(config.asset),
+    receiverConfigured,
+    facilitatorConfigured:
+      /^https:\/\/facilitator\.goplausible\.xyz/i.test(config.facilitatorUrl),
     missing: config.missing,
   };
 }
+
