@@ -437,6 +437,18 @@ export async function withX402(
     });
   } catch (error) {
     logX402Failure("settlement", config, getFacilitatorResponseError(error) ?? error);
+    if (error instanceof FacilitatorTimeoutError) {
+      // The signed group may still confirm on-chain, so never claim the user
+      // was not charged. Retrying with the same Idempotency-Key is safe.
+      return jsonResponse(
+        {
+          error: "settlement_timeout",
+          message:
+            "The Algorand settlement is taking longer than expected. Do not pay again — retry in a moment and your deck will be released once the transaction confirms.",
+        },
+        504,
+      );
+    }
     if (error instanceof FacilitatorResponseError) {
       return jsonResponse({ error: "settlement_failed", message: error.message }, 502);
     }
