@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useWallet } from "@txnlab/use-wallet-react";
 import { ExternalLink, Loader2, Lock, ShieldCheck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export function PaymentPanel({
   const { wallets, activeAddress, activeWallet, signTransactions } = useWallet();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   const busy = pending || BUSY.includes(phase);
   const sameAccount = Boolean(activeAddress) && activeAddress === quote.payTo;
 
@@ -60,7 +61,8 @@ export function PaymentPanel({
 
   const handlePay = async () => {
     // One wallet request at a time: Pera rejects concurrent requests (4100).
-    if (!activeAddress || pending) return;
+    if (!activeAddress || pendingRef.current) return;
+    pendingRef.current = true;
     setPending(true);
     console.info("[x402] pay clicked — request locked", { payer: activeAddress });
     try {
@@ -69,6 +71,7 @@ export function PaymentPanel({
         signTransactions: (txns, indexes) => signTransactions(txns, indexes),
       });
     } finally {
+      pendingRef.current = false;
       setPending(false);
       console.info("[x402] pay request unlocked");
     }

@@ -66,8 +66,13 @@ export const Route = createFileRoute("/api/public/generate-deck")({
 
             const { buildDeck } = await import("@/lib/deck/build");
             const deck = buildDeck(parsed.data.pitch, parsed.data.options);
-            if (idempotencyKey) setCompleted(idempotencyKey, deck);
             return { body: { success: true, deck } };
+          },
+          // Never mark a generation complete until the facilitator has submitted
+          // and confirmed the Algorand transaction successfully.
+          onSettled: (result) => {
+            const body = result.body as { deck?: Deck };
+            if (idempotencyKey && body.deck) setCompleted(idempotencyKey, body.deck);
           },
         });
       },
