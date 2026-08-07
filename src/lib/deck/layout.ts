@@ -42,6 +42,22 @@ function blockHeight(text: string, width: number, size: number, lh = 1.32) {
   return estimateLines(text, width, size) * size * lh;
 }
 
+function luminance(hex: string) {
+  const n = parseInt(hex, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/** Inverted panel colours for full-bleed slides, safe on light and dark styles. */
+function inverse(p: Painter) {
+  const dark = luminance(p.pal.bg) < 0.5;
+  return dark
+    ? { bg: p.pal.panelAlt, fg: p.pal.ink, sub: p.pal.muted }
+    : { bg: p.pal.ink, fg: p.pal.bg, sub: p.pal.muted };
+}
+
 function clamp(text: string, max: number) {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1).trimEnd()}…`;
@@ -361,7 +377,8 @@ function drawCover(p: Painter, slide: DeckSlide) {
 
 function drawDivider(p: Painter, slide: DeckSlide) {
   const { pal } = p;
-  p.rect({ x: 0, y: 0, w: W, h: H, color: pal.ink });
+  const inv = inverse(p);
+  p.rect({ x: 0, y: 0, w: W, h: H, color: inv.bg });
   p.text({
     x: 0,
     y: 268,
@@ -380,7 +397,7 @@ function drawDivider(p: Painter, slide: DeckSlide) {
     w: W - 240,
     text: clamp(slide.title, 46),
     size: p.t(64),
-    color: pal.bg,
+    color: inv.fg,
     font: "display",
     bold: true,
     align: "center",
@@ -392,7 +409,7 @@ function drawDivider(p: Painter, slide: DeckSlide) {
       w: W - 440,
       text: clamp(slide.subtitle, 150),
       size: p.t(19),
-      color: pal.muted,
+      color: inv.sub,
       font: "body",
       align: "center",
     });
@@ -872,7 +889,8 @@ function drawGap(p: Painter, slide: DeckSlide, top: number) {
 
 function drawClosing(p: Painter, slide: DeckSlide) {
   const { m, content, pal } = p;
-  p.rect({ x: 0, y: 0, w: W, h: H, color: pal.ink });
+  const inv = inverse(p);
+  p.rect({ x: 0, y: 0, w: W, h: H, color: inv.bg });
   p.rect({ x: 0, y: 0, w: 200, h: 8, color: pal.accent });
   p.text({
     x: m,
@@ -891,7 +909,7 @@ function drawClosing(p: Painter, slide: DeckSlide) {
     w: content - 160,
     text: clamp(slide.title, 46),
     size: p.t(62),
-    color: pal.bg,
+    color: inv.fg,
     font: "display",
     bold: true,
   });
@@ -902,7 +920,7 @@ function drawClosing(p: Painter, slide: DeckSlide) {
       w: content - 300,
       text: clamp(slide.body, 200),
       size: p.t(21),
-      color: pal.muted,
+      color: inv.sub,
       font: "body",
     });
   }
@@ -914,7 +932,7 @@ function drawClosing(p: Painter, slide: DeckSlide) {
       w: content - 100,
       text: clamp(slide.closing, 120),
       size: p.t(26),
-      color: pal.bg,
+      color: inv.fg,
       font: "display",
       bold: true,
     });
