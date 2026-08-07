@@ -140,14 +140,16 @@ function WorkspacePage() {
 
   /** Step 2: sign and settle the x402 invoice, then receive the deck. */
   const pay = async (signer: ClientAvmSigner) => {
-    if (!analysis.data) return;
+    if (!analysis.data || !quote) return;
     setPayError(null);
     const result = await payAndGenerateDeck({
       pitch: analysis.data,
+      quote,
       idempotencyKey: idempotencyKey.current,
       signer,
       onPhase: setPhase,
     });
+
 
     if (result.type === "error") {
       setPhase("ERROR");

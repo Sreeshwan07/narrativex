@@ -57,15 +57,15 @@ export function readX402Config(): X402Config {
   if (!payTo) missing.push("AVM_ADDRESS");
   else if (!isValidAlgorandAddress(payTo)) missing.push("AVM_ADDRESS (not a valid Algorand address)");
 
-  // GoPlausible's hosted AVM facilitator. The env var may override it, but a
-  // stale/unreachable host (the old `facilitator.x402.*` subdomain no longer
-  // resolves) falls back to the working base URL.
-  const DEFAULT_FACILITATOR = "https://x402.goplausible.xyz/facilitator";
+  // GoPlausible's hosted AVM facilitator. This is the only supported host;
+  // legacy/unreachable hosts are ignored even if present in the environment.
+  const DEFAULT_FACILITATOR = "https://facilitator.goplausible.xyz";
   const facilitatorEnv = env("FACILITATOR_URL");
   const facilitatorUrl =
-    facilitatorEnv && !/^https?:\/\/facilitator\.x402\./i.test(facilitatorEnv)
-      ? facilitatorEnv
+    facilitatorEnv && /^https:\/\/facilitator\.goplausible\.xyz/i.test(facilitatorEnv)
+      ? facilitatorEnv.replace(/\/+$/, "")
       : DEFAULT_FACILITATOR;
+
 
 
   const rawPrice = env("PITCH_DECK_PRICE") || DEFAULT_PRICE;
@@ -92,14 +92,22 @@ export function readX402Config(): X402Config {
  * @returns A JSON-safe status object with no secret values.
  */
 export function toPublicStatus(config: X402Config) {
+  const receiverConfigured =
+    Boolean(config.payTo) && !config.missing.some((m) => m.startsWith("AVM_ADDRESS"));
   return {
     configured: config.missing.length === 0,
+    x402Configured: config.missing.length === 0,
     network: config.networkLabel,
     networkId: config.network,
+    algorandTestnetConfigured: config.networkLabel === "Algorand TestNet",
     price: config.price,
     asset: config.assetLabel,
-    receiverConfigured: Boolean(config.payTo) && !config.missing.some((m) => m.startsWith("AVM_ADDRESS")),
-    facilitatorConfigured: Boolean(config.facilitatorUrl),
+    assetId: config.asset,
+    paymentAssetConfigured: Boolean(config.asset),
+    receiverConfigured,
+    facilitatorConfigured:
+      /^https:\/\/facilitator\.goplausible\.xyz/i.test(config.facilitatorUrl),
     missing: config.missing,
   };
 }
+

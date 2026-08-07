@@ -34,10 +34,14 @@ export const HEALTH_PATH = "/api/public/health";
 /** Public configuration snapshot returned by the diagnostic endpoints. */
 export interface X402Status {
   configured: boolean;
+  x402Configured: boolean;
   network: string;
   networkId: string;
+  algorandTestnetConfigured: boolean;
   price: string;
   asset: string;
+  assetId: string;
+  paymentAssetConfigured: boolean;
   receiverConfigured: boolean;
   facilitatorConfigured: boolean;
   missing: string[];
