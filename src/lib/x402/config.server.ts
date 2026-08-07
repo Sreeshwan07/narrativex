@@ -50,8 +50,16 @@ export function readX402Config(): X402Config {
   if (!payTo) missing.push("AVM_ADDRESS");
   else if (!isValidAlgorandAddress(payTo)) missing.push("AVM_ADDRESS (not a valid Algorand address)");
 
-  const facilitatorUrl = env("FACILITATOR_URL");
-  if (!facilitatorUrl) missing.push("FACILITATOR_URL");
+  // GoPlausible's hosted AVM facilitator. The env var may override it, but a
+  // stale/unreachable host (the old `facilitator.x402.*` subdomain no longer
+  // resolves) falls back to the working base URL.
+  const DEFAULT_FACILITATOR = "https://x402.goplausible.xyz/facilitator";
+  const facilitatorEnv = env("FACILITATOR_URL");
+  const facilitatorUrl =
+    facilitatorEnv && !/^https?:\/\/facilitator\.x402\./i.test(facilitatorEnv)
+      ? facilitatorEnv
+      : DEFAULT_FACILITATOR;
+
 
   const rawPrice = env("PITCH_DECK_PRICE") || DEFAULT_PRICE;
   const priceValue = Number.parseFloat(rawPrice.replace(/^\$/, ""));
