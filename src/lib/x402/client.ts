@@ -34,8 +34,10 @@ export interface PaymentSettlement {
 const ATOMIC_UNITS = 1_000_000;
 
 function networkLabel(network: string): string {
-  if (network === ALGORAND_TESTNET_CAIP2) return "Algorand TestNet";
-  if (network === ALGORAND_MAINNET_CAIP2) return "Algorand MainNet";
+  if (network === ALGORAND_TESTNET_CAIP2 || network === ALGORAND_TESTNET_NETWORK)
+    return "Algorand TestNet";
+  if (network === ALGORAND_MAINNET_CAIP2 || network === ALGORAND_MAINNET_NETWORK)
+    return "Algorand MainNet";
   return network;
 }
 
