@@ -231,13 +231,16 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
       body: JSON.stringify({ pitch, options }),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
+    const message =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
+    // Surface the underlying failure in the console for diagnostics.
+    console.error("[x402] payment failed", error);
     if (/reject|cancel|denied|closed/i.test(message)) {
       return { type: "error", message: "You cancelled the payment in your wallet." };
     }
     return {
       type: "error",
-      message: describePaymentError(message, "The payment could not be completed. Please try again."),
+      message: describePaymentError(message, "The payment could not be completed."),
     };
   }
 
