@@ -51,17 +51,24 @@ export const Route = createFileRoute("/api/public/generate-deck")({
         const idempotencyKey = request.headers.get("Idempotency-Key")?.trim() || "";
 
         const { withX402 } = await import("@/lib/x402/resource-server.server");
-        const { getCompleted, setCompleted } = await import("@/lib/x402/idempotency.server");
+        const { getCompletedDurable, setCompletedDurable } = await import(
+          "@/lib/x402/idempotency.server"
+        );
+
+        // Resolved up-front: on the published site a retry usually lands on a
+        // different worker instance, so the lookup must hit the durable store.
+        const alreadyGenerated = idempotencyKey
+          ? await getCompletedDurable<Deck>(idempotencyKey)
+          : undefined;
 
         return withX402(request, {
           routePattern: ROUTE_PATTERN,
           body: parsed.data,
           // A retry of an already-paid generation must not be charged twice.
-          skipPayment: () => Boolean(idempotencyKey && getCompleted<Deck>(idempotencyKey)),
+          skipPayment: () => Boolean(alreadyGenerated),
           handler: async () => {
-            if (idempotencyKey) {
-              const existing = getCompleted<Deck>(idempotencyKey);
-              if (existing) return { body: { success: true, deck: existing, replayed: true } };
+            if (alreadyGenerated) {
+              return { body: { success: true, deck: alreadyGenerated, replayed: true } };
             }
 
             const { buildDeck } = await import("@/lib/deck/build");
@@ -70,9 +77,9 @@ export const Route = createFileRoute("/api/public/generate-deck")({
           },
           // Never mark a generation complete until the facilitator has submitted
           // and confirmed the Algorand transaction successfully.
-          onSettled: (result) => {
+          onSettled: async (result) => {
             const body = result.body as { deck?: Deck };
-            if (idempotencyKey && body.deck) setCompleted(idempotencyKey, body.deck);
+            if (idempotencyKey && body.deck) await setCompletedDurable(idempotencyKey, body.deck);
           },
         });
       },
