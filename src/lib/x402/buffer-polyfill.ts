@@ -10,15 +10,18 @@
  */
 import { Buffer as BufferPolyfill } from "buffer/";
 
-type GlobalWithBuffer = typeof globalThis & { Buffer?: unknown };
+const g = globalThis as unknown as Record<string, unknown>;
 
-const g = globalThis as GlobalWithBuffer;
+const existing = g["Buffer"] as { from?: unknown } | undefined;
 
-if (typeof g.Buffer === "undefined" || typeof (g.Buffer as { from?: unknown })?.from !== "function") {
-  g.Buffer = BufferPolyfill as unknown;
+if (!existing || typeof existing.from !== "function") {
+  g["Buffer"] = BufferPolyfill;
 }
 
 /** True when a usable Buffer implementation is available. */
 export function hasBuffer(): boolean {
-  return typeof (globalThis as GlobalWithBuffer).Buffer !== "undefined";
+  const b = (globalThis as unknown as Record<string, unknown>)["Buffer"] as
+    | { from?: unknown }
+    | undefined;
+  return typeof b?.from === "function";
 }
