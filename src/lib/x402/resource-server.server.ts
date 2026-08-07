@@ -83,7 +83,19 @@ class FetchAdapter implements HTTPAdapter {
 
 export class X402ConfigurationError extends Error {}
 
-let cached: { key: string; server: x402HTTPResourceServer; initialized: boolean } | null = null;
+let cached: {
+  key: string;
+  server: x402HTTPResourceServer;
+  initialized: boolean;
+  initializing: Promise<void> | null;
+} | null = null;
+
+/**
+ * Facilitator call budget. The published site runs on a serverless worker with
+ * a hard request ceiling, so a stuck facilitator must surface as a readable
+ * JSON error well before the platform kills the request with a 502/504.
+ */
+const FACILITATOR_TIMEOUT_MS = 20_000;
 
 /**
  * Builds (and memoises) the x402 HTTP resource server for the protected route.
@@ -96,7 +108,10 @@ function getResourceServer(routePattern: string, config: X402Config): x402HTTPRe
   const key = `${routePattern}|${config.network}|${config.payTo}|${config.facilitatorUrl}|${config.price}|${config.asset}`;
   if (cached?.key === key) return cached.server;
 
-  const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
+  const facilitator = new HTTPFacilitatorClient({
+    url: config.facilitatorUrl,
+    timeoutMs: FACILITATOR_TIMEOUT_MS,
+  });
   const resourceServer = new x402ResourceServer(facilitator).register(
     config.network,
     new ExactAvmScheme(),
@@ -117,8 +132,31 @@ function getResourceServer(routePattern: string, config: X402Config): x402HTTPRe
     },
   });
 
-  cached = { key, server: httpServer, initialized: false };
+  cached = { key, server: httpServer, initialized: false, initializing: null };
   return httpServer;
+}
+
+/**
+ * Initialises the resource server exactly once per worker instance, even when
+ * several requests arrive together on a cold isolate (common on the published
+ * site, never seen on the single long-lived preview server).
+ *
+ * @param httpServer - The memoised resource server.
+ */
+async function ensureInitialized(httpServer: x402HTTPResourceServer): Promise<void> {
+  const entry = cached;
+  if (!entry || entry.initialized) return;
+  if (!entry.initializing) {
+    entry.initializing = httpServer
+      .initialize()
+      .then(() => {
+        entry.initialized = true;
+      })
+      .finally(() => {
+        entry.initializing = null;
+      });
+  }
+  await entry.initializing;
 }
 
 /**
