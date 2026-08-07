@@ -182,14 +182,18 @@ export function PaymentPanel({
               size="xl"
               disabled={busy}
               className="w-full min-h-12 lg:w-auto"
-              onClick={handlePay}
+              onClick={() => void handlePay()}
             >
               {busy ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <ShieldCheck className="size-4" />
               )}
-              {busy ? PAYMENT_PHASE_LABEL[phase] : `Pay ${quote.amountLabel} & Generate Deck`}
+              {busy
+                ? BUSY.includes(phase)
+                  ? PAYMENT_PHASE_LABEL[phase]
+                  : PAYMENT_PHASE_LABEL.WALLET_PENDING
+                : `Pay ${quote.amountLabel} & Generate Deck`}
             </Button>
           </div>
         )}
