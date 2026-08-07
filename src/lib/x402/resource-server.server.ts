@@ -284,12 +284,25 @@ export async function withX402(
 
   if (processed.type === "payment-error") {
     const { response } = processed;
+    const reason = extractChallengeError(response.headers) ?? extractBodyError(response.body);
     logX402Failure("verification", config, {
       status: response.status,
       body: response.body,
       headers: response.headers,
+      reason,
     });
-    return jsonResponse(response.body, response.status, response.headers);
+    // The x402 SDK returns an empty body and puts the failure reason inside the
+    // base64 PAYMENT-REQUIRED header. Mirror it into JSON so the browser can
+    // show the exact rejection instead of "Payment failed".
+    const body =
+      response.body && Object.keys(response.body as object).length > 0
+        ? response.body
+        : {
+            error: "payment_verification_failed",
+            stage: "verification",
+            message: reason ?? "The facilitator rejected the payment payload.",
+          };
+    return jsonResponse(body, response.status, response.headers);
   }
 
   if (processed.type === "no-payment-required") {
