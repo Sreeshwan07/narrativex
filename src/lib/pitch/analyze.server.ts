@@ -76,6 +76,7 @@ export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeR
     return { success: true, pitch: normalize(parsed.data) };
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
+      console.error("NoObjectGenerated text:", error.text, "cause:", error.cause);
       return {
         success: false,
         error: "The AI could not structure this documentation. Try a more descriptive README.",
