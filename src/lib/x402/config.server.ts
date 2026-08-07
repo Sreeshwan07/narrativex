@@ -1,11 +1,18 @@
 import {
-  ALGORAND_MAINNET_CAIP2,
-  ALGORAND_TESTNET_CAIP2,
+  ALGORAND_MAINNET_GENESIS_HASH,
+  ALGORAND_TESTNET_GENESIS_HASH,
   USDC_MAINNET_ASA_ID,
   USDC_TESTNET_ASA_ID,
   isValidAlgorandAddress,
 } from "@x402/avm";
 import type { Network } from "@x402/core/types";
+
+// The facilitator advertises Algorand networks by their full genesis hash
+// (`algorand:<genesisHash>`), not the truncated CAIP-2 alias exported as
+// ALGORAND_*_CAIP2. The AVM scheme normalises this form, so use it everywhere.
+const ALGORAND_MAINNET_NETWORK = `algorand:${ALGORAND_MAINNET_GENESIS_HASH}`;
+const ALGORAND_TESTNET_NETWORK = `algorand:${ALGORAND_TESTNET_GENESIS_HASH}`;
+
 
 /**
  * Server-only x402 configuration. All values come from the environment so the
@@ -66,7 +73,7 @@ export function readX402Config(): X402Config {
   const safePrice = Number.isFinite(priceValue) && priceValue > 0 ? priceValue : Number(DEFAULT_PRICE);
 
   return {
-    network: (isMainnet ? ALGORAND_MAINNET_CAIP2 : ALGORAND_TESTNET_CAIP2) as Network,
+    network: (isMainnet ? ALGORAND_MAINNET_NETWORK : ALGORAND_TESTNET_NETWORK) as Network,
     networkLabel: isMainnet ? "Algorand MainNet" : "Algorand TestNet",
     asset: isMainnet ? USDC_MAINNET_ASA_ID : USDC_TESTNET_ASA_ID,
     assetLabel: isMainnet ? "USDC (MainNet)" : "USDC (TestNet)",

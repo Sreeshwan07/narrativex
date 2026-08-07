@@ -204,6 +204,8 @@ export async function withX402(
       await httpServer.initialize();
       cached.initialized = true;
     } catch (error) {
+      console.error("x402 facilitator init failed:", config.facilitatorUrl, error);
+
       const facilitatorError = getFacilitatorResponseError(error);
       return jsonResponse(
         {

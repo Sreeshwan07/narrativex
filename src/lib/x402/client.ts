@@ -3,7 +3,16 @@ import { decodePaymentRequiredHeader, decodePaymentResponseHeader } from "@x402/
 import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { ExactAvmScheme } from "@x402/avm/exact/client";
 import type { ClientAvmSigner } from "@x402/avm";
-import { ALGORAND_MAINNET_CAIP2, ALGORAND_TESTNET_CAIP2 } from "@x402/avm";
+import {
+  ALGORAND_MAINNET_CAIP2,
+  ALGORAND_TESTNET_CAIP2,
+  ALGORAND_MAINNET_GENESIS_HASH,
+  ALGORAND_TESTNET_GENESIS_HASH,
+} from "@x402/avm";
+
+/** Full-genesis-hash network ids, matching what the facilitator advertises. */
+const ALGORAND_MAINNET_NETWORK = `algorand:${ALGORAND_MAINNET_GENESIS_HASH}`;
+const ALGORAND_TESTNET_NETWORK = `algorand:${ALGORAND_TESTNET_GENESIS_HASH}`;
 import { GENERATE_DECK_PATH, describePaymentError, type PaymentPhase } from "@/lib/x402/shared";
 import type { Deck } from "@/lib/deck/schema";
 
@@ -25,8 +34,10 @@ export interface PaymentSettlement {
 const ATOMIC_UNITS = 1_000_000;
 
 function networkLabel(network: string): string {
-  if (network === ALGORAND_TESTNET_CAIP2) return "Algorand TestNet";
-  if (network === ALGORAND_MAINNET_CAIP2) return "Algorand MainNet";
+  if (network === ALGORAND_TESTNET_CAIP2 || network === ALGORAND_TESTNET_NETWORK)
+    return "Algorand TestNet";
+  if (network === ALGORAND_MAINNET_CAIP2 || network === ALGORAND_MAINNET_NETWORK)
+    return "Algorand MainNet";
   return network;
 }
 
@@ -128,6 +139,8 @@ export async function payAndGenerateDeck(args: PayAndGenerateArgs): Promise<PayR
   };
 
   const client = new x402Client()
+    .register(ALGORAND_TESTNET_NETWORK, new ExactAvmScheme(trackedSigner))
+    .register(ALGORAND_MAINNET_NETWORK, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_TESTNET_CAIP2, new ExactAvmScheme(trackedSigner))
     .register(ALGORAND_MAINNET_CAIP2, new ExactAvmScheme(trackedSigner));
 
