@@ -15,7 +15,7 @@ type GlobalWithBuffer = typeof globalThis & { Buffer?: unknown };
 const g = globalThis as GlobalWithBuffer;
 
 if (typeof g.Buffer === "undefined" || typeof (g.Buffer as { from?: unknown })?.from !== "function") {
-  g.Buffer = BufferPolyfill;
+  g.Buffer = BufferPolyfill as unknown;
 }
 
 /** True when a usable Buffer implementation is available. */
