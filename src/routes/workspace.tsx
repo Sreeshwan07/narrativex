@@ -4,7 +4,15 @@ import { ClientOnly } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ExternalLink, Sparkles } from "lucide-react";
+import {
+  ExternalLink,
+  FileCode2,
+  Presentation,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { Chip, Panel, StateCard, StatusDot } from "@/components/primitives";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SourceComposer } from "@/components/source-composer";
 import { AnalysisProgress } from "@/components/analysis-progress";
