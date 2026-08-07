@@ -87,6 +87,20 @@ export function PitchIntelligence({ pitch }: { pitch: Pitch }) {
         </div>
       </div>
 
+      {pitch.investor_questions.length > 0 && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-7">
+          <span className="rule-label">Questions investors may ask</span>
+          <ol className="mt-3 space-y-2">
+            {pitch.investor_questions.map((question, i) => (
+              <li key={question} className="flex gap-3 leading-relaxed">
+                <span className="font-mono text-xs text-ember">{String(i + 1).padStart(2, "0")}</span>
+                <span>{question}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       <p className="mt-4 text-xs text-muted-foreground">
         Empty sections mean your documentation didn't provide evidence for them — nothing is
         invented.

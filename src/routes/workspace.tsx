@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { ClientOnly } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { SourceComposer } from "@/components/source-composer";
-import { AnalysisProgress, DECK_STAGES } from "@/components/analysis-progress";
+import { AnalysisProgress } from "@/components/analysis-progress";
 import { PitchIntelligence } from "@/components/pitch-intelligence";
 import { DeckPreview } from "@/components/deck-preview";
+import { AlgorandWalletProvider } from "@/components/wallet-provider";
+import { PaymentPanel } from "@/components/payment-panel";
 import { Button } from "@/components/ui/button";
 import { analyzeReadmeFn } from "@/lib/pitch/analyze.functions";
-import { generateDeckFn } from "@/lib/deck/generate.functions";
+import {
+  payAndGenerateDeck,
+  requestDeckQuote,
+  type PaymentQuote,
+  type PaymentSettlement,
+} from "@/lib/x402/client";
+import { explorerTxUrl, PAYMENT_PHASE_LABEL, type PaymentPhase } from "@/lib/x402/shared";
+import type { ClientAvmSigner } from "@x402/avm";
 import type { Pitch } from "@/lib/pitch/schema";
 import type { Deck } from "@/lib/deck/schema";
 import type { PitchSource } from "@/lib/pitch/types";
@@ -23,6 +33,25 @@ const ANALYZE_STAGES = [
   "Structuring your pitch…",
 ] as const;
 
+const PAYMENT_STAGES = [
+  "Requesting the deck",
+  "Awaiting wallet approval",
+  "Settling payment on Algorand",
+  "Building your investor deck",
+  "Ready to present",
+] as const;
+
+const PHASE_STAGE: Partial<Record<PaymentPhase, number>> = {
+  PAYMENT_REQUIRED: 0,
+  WALLET_CONNECTING: 0,
+  WALLET_PENDING: 1,
+  SUBMITTING_PAYMENT: 2,
+  VERIFYING_PAYMENT: 2,
+  PAYMENT_SUCCESS: 3,
+  GENERATING_DECK: 3,
+  COMPLETE: 4,
+};
+
 export const Route = createFileRoute("/workspace")({
   head: () => ({
     meta: [
@@ -30,7 +59,7 @@ export const Route = createFileRoute("/workspace")({
       {
         name: "description",
         content:
-          "Upload a README or paste documentation, review the extracted pitch, and generate a downloadable 10-slide investor deck.",
+          "Upload a README or paste documentation, review the extracted pitch, and pay $0.10 USDC on Algorand TestNet to generate a 10-slide investor deck.",
       },
       { property: "og:title", content: "PitchForge Workspace" },
       {
@@ -46,9 +75,23 @@ export const Route = createFileRoute("/workspace")({
 
 function WorkspacePage() {
   const analyze = useServerFn(analyzeReadmeFn);
-  const generate = useServerFn(generateDeckFn);
   const [analyzeStage, setAnalyzeStage] = useState(0);
-  const [deckStage, setDeckStage] = useState(0);
+
+  const [phase, setPhase] = useState<PaymentPhase>("IDLE");
+  const [quote, setQuote] = useState<PaymentQuote | null>(null);
+  const [settlement, setSettlement] = useState<PaymentSettlement | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [deck, setDeck] = useState<Deck | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const idempotencyKey = useRef<string>("");
+
+  const resetPayment = useCallback(() => {
+    setPhase("IDLE");
+    setQuote(null);
+    setSettlement(null);
+    setPayError(null);
+    setDeck(null);
+  }, []);
 
   const analysis = useMutation<Pitch, Error, PitchSource>({
     mutationFn: async (source) => {
@@ -69,26 +112,59 @@ function WorkspacePage() {
     onError: (error) => toast.error(error.message || "Analysis failed."),
   });
 
-  // Next step plugs in here: an x402-protected wrapper around generateDeckFn.
-  const deck = useMutation<Deck, Error, Pitch>({
-    mutationFn: async (pitch) => {
-      setDeckStage(0);
-      await new Promise((r) => setTimeout(r, 120));
-      setDeckStage(1);
-      const result = await generate({ data: { pitch } });
-      if (!result.success) throw new Error(result.error);
-      setDeckStage(2);
-      // Warm the export pipeline so the download buttons respond instantly.
-      await import("@/lib/deck/export");
-      setDeckStage(3);
-      await new Promise((r) => setTimeout(r, 200));
-      setDeckStage(DECK_STAGES.length - 1);
-      return result.deck;
-    },
-    onError: (error) => toast.error(error.message || "Deck generation failed."),
-  });
+  /** Step 1 of the paid flow: ask the server for the deck and expect HTTP 402. */
+  const startGeneration = async (pitch: Pitch) => {
+    setRequesting(true);
+    setPayError(null);
+    idempotencyKey.current = crypto.randomUUID();
+    try {
+      const result = await requestDeckQuote(pitch, idempotencyKey.current);
+      if (result.type === "payment_required") {
+        setQuote(result.quote);
+        setPhase("PAYMENT_REQUIRED");
+      } else if (result.type === "deck") {
+        setDeck(result.deck);
+        setPhase("COMPLETE");
+      } else {
+        setPhase("ERROR");
+        setPayError(result.message);
+        toast.error(result.message);
+      }
+    } catch {
+      setPhase("ERROR");
+      setPayError("Could not reach the deck service. Please try again.");
+    } finally {
+      setRequesting(false);
+    }
+  };
 
-  const showDeck = deck.isSuccess && !deck.isPending;
+  /** Step 2: sign and settle the x402 invoice, then receive the deck. */
+  const pay = async (signer: ClientAvmSigner) => {
+    if (!analysis.data) return;
+    setPayError(null);
+    const result = await payAndGenerateDeck({
+      pitch: analysis.data,
+      idempotencyKey: idempotencyKey.current,
+      signer,
+      onPhase: setPhase,
+    });
+
+    if (result.type === "error") {
+      setPhase("ERROR");
+      setPayError(result.message);
+      toast.error(result.message);
+      return;
+    }
+
+    setSettlement(result.settlement);
+    setPhase("GENERATING_DECK");
+    setDeck(result.deck);
+    setPhase("COMPLETE");
+    toast.success("Payment verified — your deck is ready.");
+  };
+
+  const showDeck = deck !== null;
+  const paying = ["WALLET_PENDING", "SUBMITTING_PAYMENT", "VERIFYING_PAYMENT"].includes(phase);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -106,7 +182,7 @@ function WorkspacePage() {
         <div className="mt-10 animate-rise" style={{ animationDelay: "80ms" }}>
           <SourceComposer
             onGenerate={(source) => {
-              deck.reset();
+              resetPayment();
               analysis.mutate(source);
             }}
             pending={analysis.isPending}
@@ -119,40 +195,87 @@ function WorkspacePage() {
           </div>
         )}
 
-        {deck.isPending && (
+        {(requesting || paying) && (
           <div className="mt-10">
-            <AnalysisProgress stage={deckStage} label="Building your deck" />
+            <AnalysisProgress
+              stage={PHASE_STAGE[phase] ?? 0}
+              stages={PAYMENT_STAGES}
+              label={PAYMENT_PHASE_LABEL[phase]}
+            />
           </div>
         )}
 
         {showDeck && (
           <div className="mt-14">
-            <DeckPreview deck={deck.data} />
+            {settlement && (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface px-5 py-4">
+                <div>
+                  <span className="rule-label">Payment settled — {settlement.network}</span>
+                  <p className="mt-1 font-mono text-xs break-all text-muted-foreground">
+                    {settlement.transactionId}
+                  </p>
+                </div>
+                <a
+                  className="flex items-center gap-2 font-mono text-xs text-ember underline underline-offset-4"
+                  href={explorerTxUrl(settlement.transactionId, settlement.network)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View on Algorand Explorer
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+            )}
+            <DeckPreview deck={deck} />
           </div>
         )}
 
-        {analysis.isSuccess && !analysis.isPending && !showDeck && !deck.isPending && (
+        {analysis.isSuccess && !analysis.isPending && !showDeck && (
           <>
             <div className="mt-14">
               <PitchIntelligence pitch={analysis.data} />
             </div>
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-6 shadow-paper">
-              <div>
-                <p className="font-display text-2xl">Ready to forge the deck.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Ten investor slides, built from the evidence above — nothing invented.
-                </p>
+
+            {quote ? (
+              <div className="mt-8">
+                <ClientOnly fallback={null}>
+                  <AlgorandWalletProvider>
+                    <PaymentPanel
+                      quote={quote}
+                      phase={phase}
+                      error={payError}
+                      settlement={settlement}
+                      onPay={(signer) => void pay(signer)}
+                      onPhase={setPhase}
+                    />
+                  </AlgorandWalletProvider>
+                </ClientOnly>
               </div>
-              <Button variant="ink" onClick={() => deck.mutate(analysis.data)}>
-                <Sparkles className="size-4" />
-                Generate Pitch Deck
-              </Button>
-            </div>
+            ) : (
+              <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-6 shadow-paper">
+                <div>
+                  <p className="font-display text-2xl">Ready to forge the deck.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Ten investor slides, built from the evidence above — nothing invented. Payment
+                    is requested by the server before anything is generated.
+                  </p>
+                  {payError && <p className="mt-2 text-sm text-destructive">{payError}</p>}
+                </div>
+                <Button
+                  variant="ink"
+                  disabled={requesting}
+                  onClick={() => void startGeneration(analysis.data)}
+                >
+                  <Sparkles className="size-4" />
+                  {requesting ? "Preparing…" : "Generate Pitch Deck"}
+                </Button>
+              </div>
+            )}
           </>
         )}
 
         <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-6">
-          <span className="rule-label">Pay-per-generation • x402 • Algorand</span>
+          <span className="rule-label">Pay-per-generation • x402 • Algorand TestNet</span>
           <span className="text-xs text-muted-foreground">
             No account required. You pay only when a deck is produced.
           </span>
