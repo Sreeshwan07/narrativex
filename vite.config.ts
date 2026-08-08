@@ -27,18 +27,21 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    environments: {
-      client: {
-        resolve: {
-          alias: [
-            { find: /^buffer$/, replacement: bufferPolyfillPath },
-            { find: /^node:buffer$/, replacement: bufferPolyfillPath },
-          ],
+    plugins: [
+      {
+        name: "client-only-buffer-alias",
+        // Must run BEFORE Vite's node-builtin resolver, or the production
+        // client bundle gets the empty stub instead of the polyfill.
+        enforce: "pre" as const,
+        applyToEnvironment: (env: { name: string }) => env.name === "client",
+        resolveId(id: string) {
+          return id === "buffer" || id === "node:buffer" ? bufferPolyfillPath : null;
         },
       },
-    },
+    ],
     optimizeDeps: { include: ["buffer"] },
   },
+
 });
 
 
