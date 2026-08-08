@@ -55,101 +55,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function valueType(value: unknown): string {
-  if (value === null) return "null";
-  if (Array.isArray(value)) return "array";
-  if (value instanceof Uint8Array) return "Uint8Array";
-  return typeof value;
-}
-
-function collectFieldTypes(
-  value: unknown,
-  path = "quote",
-  output: Record<string, string> = {},
-): Record<string, string> {
-  output[path] = valueType(value);
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => collectFieldTypes(item, `${path}[${index}]`, output));
-  } else if (isRecord(value)) {
-    Object.entries(value).forEach(([key, item]) => collectFieldTypes(item, `${path}.${key}`, output));
-  }
-  return output;
-}
-
-function collectTransactionValues(
-  value: unknown,
-  path = "quote",
-  output: Array<{ path: string; type: string; value: unknown }> = [],
-): Array<{ path: string; type: string; value: unknown }> {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => collectTransactionValues(item, `${path}[${index}]`, output));
-    return output;
-  }
-  if (!isRecord(value)) return output;
-  Object.entries(value).forEach(([key, item]) => {
-    const itemPath = `${path}.${key}`;
-    if (/transaction|txn|paymentGroup/i.test(key)) {
-      output.push({ path: itemPath, type: valueType(item), value: item });
-    }
-    collectTransactionValues(item, itemPath, output);
-  });
-  return output;
-}
-
-function collectBase64TransactionStrings(
-  transactions: Array<{ path: string; type: string; value: unknown }>,
-): Array<{ path: string; type: string; value: string }> {
-  const found: Array<{ path: string; type: string; value: string }> = [];
-  const visit = (value: unknown, path: string) => {
-    if (typeof value === "string") {
-      found.push({ path, type: "string", value });
-    } else if (Array.isArray(value)) {
-      value.forEach((item, index) => visit(item, `${path}[${index}]`));
-    } else if (isRecord(value)) {
-      Object.entries(value).forEach(([key, item]) => visit(item, `${path}.${key}`));
-    }
-  };
-  transactions.forEach((entry) => visit(entry.value, entry.path));
-  return found;
-}
-
-/**
- * Logs the facilitator object by reference before the SDK receives it. Nothing
- * in this function clones, serializes, decodes, normalizes, or mutates it.
- */
-function inspectRawFacilitatorResponse(quote: PaymentQuote): string | null {
-  const raw = quote.raw as unknown;
-  const rawRecord = isRecord(raw) ? raw : undefined;
-  const legacyRequirements = rawRecord?.["requirements"];
-  const legacyFirst = Array.isArray(legacyRequirements) ? legacyRequirements[0] : undefined;
-  const firstRecord = isRecord(legacyFirst) ? legacyFirst : undefined;
-  const transactions = collectTransactionValues(raw);
-  const base64Transactions = collectBase64TransactionStrings(transactions);
-
-  console.info("[x402][facilitator][raw] quote", raw);
-  console.info("[x402][facilitator][raw] quote.requirements", legacyRequirements);
-  console.info("[x402][facilitator][raw] quote.requirements[0]", legacyFirst);
-  console.info("[x402][facilitator][raw] quote.requirements[0].resource", firstRecord?.["resource"]);
-  console.info("[x402][facilitator][raw] quote.requirements[0].payment", firstRecord?.["payment"]);
-  console.info("[x402][facilitator][raw] every transaction object", transactions);
-  console.info("[x402][facilitator][raw] every base64 transaction string", base64Transactions);
-  console.info("[x402][facilitator][raw] typeof every field", collectFieldTypes(raw));
-
-  const validation = validatePaymentRequired(raw);
-  if (!validation.valid) {
-    console.error(`[x402][facilitator][schema] missing or invalid: ${validation.reason}`);
-    return `Invalid x402 facilitator response for @x402/avm 2.21.0: ${validation.reason}`;
-  }
-
-  console.info(
-    "[x402][facilitator][schema] @x402/avm 2.21.0 match: x402Version=2, root resource, accepts[0] payment requirement",
-  );
-  console.info(
-    "[x402][facilitator][schema] quote.requirements and nested resource/payment are not v2 fields; AVM constructs transactions locally after this check",
-  );
-  return null;
-}
-
 /**
  * Validates the complete x402 v2 AVM challenge before the AVM SDK is loaded.
  * The current AVM SDK does not receive a prebuilt transaction from the
@@ -259,7 +164,6 @@ export async function requestDeckQuote(
       hasPaymentRequiredHeader: Boolean(header),
       origin: window.location.origin,
     });
-    console.info("[x402][facilitator][raw-header] PAYMENT-REQUIRED", header);
     if (header) {
       try {
         const rawQuote = decodePaymentRequiredHeader(header);
@@ -610,16 +514,27 @@ async function runPayment(args: PayAndGenerateArgs): Promise<PayResult> {
   let response: Response;
   let paymentHeaders: Record<string, string> = {};
   try {
-    // Inspect the original object by reference. Do not clone, normalize, or
-    // replace it before handing that same object to the SDK.
-    const schemaError = inspectRawFacilitatorResponse(args.quote);
-    if (schemaError) throw new Error(schemaError);
-    console.info("[x402][step] create_payment_payload", {
-      quote: args.quote.raw,
-      selectedRequirements: args.quote.requirements,
+    // Full, unmutated quote as returned by the server, logged before the SDK
+    // touches it, so an invalid facilitator response is visible verbatim.
+    console.info("[x402][step] create_payment_payload — one payload from the existing quote", {
+      quote: JSON.parse(JSON.stringify(args.quote.raw)),
+      requirements: args.quote.requirements,
       bufferModuleAvailable: hasBuffer(),
     });
-    const paymentPayload = await client.createPaymentPayload(args.quote.raw);
+    const validation = validatePaymentRequired(args.quote.raw);
+    if (!validation.valid) {
+      throw new Error(
+        `Invalid x402 facilitator response: ${validation.reason}. Raw response: ${rawChallenge(args.quote.raw)}`,
+      );
+    }
+    // Pass a fresh, single-option challenge to prevent the SDK selector from
+    // choosing a different accept entry than the one already validated above.
+    const validatedQuote: PaymentRequired = {
+      ...validation.raw,
+      accepts: [{ ...validation.requirements, extra: { ...validation.requirements.extra } }],
+    };
+    console.info("[x402][sdk] validated payment requirement", validatedQuote.accepts[0]);
+    const paymentPayload = await client.createPaymentPayload(validatedQuote);
     console.info("[x402][sdk] createPaymentPayload response", paymentPayload);
     const invalidPayload = describeInvalidSdkPayload(paymentPayload);
     if (invalidPayload) {
