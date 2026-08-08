@@ -19,12 +19,19 @@ export default defineConfig({
     // Algorand transaction decoder fails with
     // "Cannot read properties of undefined (reading 'from')".
     // Map it to the userland `buffer` package so the codecs work client-side.
-    resolve: {
-      alias: [
-        { find: /^buffer$/, replacement: "buffer/" },
-        { find: /^node:buffer$/, replacement: "buffer/" },
-      ],
+    // CLIENT ONLY: the userland package uses `require`, which throws in the
+    // SSR/worker runtime — the server already has a native Buffer.
+    environments: {
+      client: {
+        resolve: {
+          alias: [
+            { find: /^buffer$/, replacement: "buffer/" },
+            { find: /^node:buffer$/, replacement: "buffer/" },
+          ],
+        },
+      },
     },
     optimizeDeps: { include: ["buffer"] },
   },
 });
+
