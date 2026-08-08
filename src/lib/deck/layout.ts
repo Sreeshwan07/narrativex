@@ -24,6 +24,7 @@ export type DrawOp =
       font: FontRole;
       bold?: boolean;
       italic?: boolean;
+      underline?: boolean;
       caps?: boolean;
       align?: "left" | "center" | "right";
       lineHeight?: number;
@@ -951,7 +952,7 @@ const FULL_BLEED = new Set(["cover", "divider", "quote", "closing"]);
  * @param styleId - Deck style identifier.
  * @returns Ordered draw operations in 1280×720 space.
  */
-export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
+function baseSlideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
   const style = getDeckStyle(styleId);
   const p = new Painter(style);
   p.rect({ x: 0, y: 0, w: W, h: H, color: style.palette.bg });
@@ -1023,4 +1024,34 @@ export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
     footer(p, slide);
   }
   return p.ops;
+}
+
+/**
+ * Renders a slide, then applies the editor's per-slide formatting overrides.
+ * Preview, PPTX and PDF all consume this, so an edit shows up everywhere.
+ */
+export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
+  const ops = baseSlideToOps(slide, styleId);
+  const f = slide.format;
+  if (!f) return ops;
+
+  const scale = Number.isFinite(f.scale) && f.scale > 0 ? f.scale : 1;
+  const bg = f.background?.trim().replace(/^#/, "");
+
+  return ops.map((op, i): DrawOp => {
+    if (op.kind === "rect") {
+      // The first rect is always the full-bleed slide background.
+      if (i === 0 && bg && /^[0-9a-fA-F]{6}$/.test(bg)) return { ...op, color: bg.toUpperCase() };
+      return op;
+    }
+    const next: Extract<DrawOp, { kind: "text" }> = {
+      ...op,
+      size: Math.max(6, Math.round(op.size * scale)),
+    };
+    if (f.align !== "inherit") next.align = f.align;
+    if (f.bold) next.bold = true;
+    if (f.italic) next.italic = true;
+    if (f.underline) next.underline = true;
+    return next;
+  });
 }

@@ -60,6 +60,7 @@ export function SlideCanvas({
               fontSize: op.size,
               fontWeight: op.bold ? 700 : 400,
               fontStyle: op.italic ? "italic" : "normal",
+              textDecoration: op.underline ? "underline" : "none",
               lineHeight: op.lineHeight ?? 1.32,
               letterSpacing: op.caps ? "0.12em" : "-0.01em",
               textTransform: op.caps ? "uppercase" : "none",

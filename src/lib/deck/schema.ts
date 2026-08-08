@@ -54,7 +54,34 @@ export const deckPhaseSchema = z.object({
   detail: z.string().default(""),
 });
 
+/**
+ * Per-slide presentation overrides applied by the editor. They are applied to
+ * the draw operations, so the canvas preview, PPTX and PDF all stay identical.
+ */
+export const slideFormatSchema = z.object({
+  /** Multiplies every text size on the slide. */
+  scale: z.number().default(1),
+  align: z.enum(["inherit", "left", "center", "right"]).default("inherit"),
+  bold: z.boolean().default(false),
+  italic: z.boolean().default(false),
+  underline: z.boolean().default(false),
+  /** Hex without "#". Empty keeps the style background. */
+  background: z.string().default(""),
+});
+
+export type SlideFormat = z.infer<typeof slideFormatSchema>;
+
+export const DEFAULT_SLIDE_FORMAT: SlideFormat = {
+  scale: 1,
+  align: "inherit",
+  bold: false,
+  italic: false,
+  underline: false,
+  background: "",
+};
+
 export const deckSlideSchema = z.object({
+
   id: z.string(),
   /** 1-based position in the deck. */
   number: z.number(),
@@ -72,6 +99,8 @@ export const deckSlideSchema = z.object({
   /** Honest disclosure shown when the source documentation lacked evidence. */
   note: z.string().default(""),
   closing: z.string().default(""),
+  format: slideFormatSchema.default(DEFAULT_SLIDE_FORMAT),
+
 });
 
 export type DeckBullet = z.infer<typeof deckBulletSchema>;

@@ -61,6 +61,7 @@ export async function exportPptx(deck: Deck) {
           color: op.color,
           bold: op.bold ?? false,
           italic: op.italic ?? false,
+          ...(op.underline ? { underline: { style: "sng" as const } } : {}),
           fontFace: style.fonts[op.font].pptx,
           align: op.align ?? "left",
           valign: "top",
@@ -112,6 +113,17 @@ export async function exportPdf(deck: Deck) {
           baseline: "alphabetic",
           align,
         });
+        if (op.underline) {
+          doc.setDrawColor(`#${op.color}`);
+          doc.setLineWidth(Math.max(0.6, op.size * 0.05));
+          lines.forEach((line, li) => {
+            const width = doc.getTextWidth(line);
+            const lx = align === "center" ? x - width / 2 : align === "right" ? x - width : x;
+            const ly = op.y + op.size + li * op.size * 1.35 + op.size * 0.16;
+            doc.line(lx, ly, lx + width, ly);
+          });
+        }
+
       }
     }
   });
