@@ -952,7 +952,7 @@ const FULL_BLEED = new Set(["cover", "divider", "quote", "closing"]);
  * @param styleId - Deck style identifier.
  * @returns Ordered draw operations in 1280×720 space.
  */
-export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
+function baseSlideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
   const style = getDeckStyle(styleId);
   const p = new Painter(style);
   p.rect({ x: 0, y: 0, w: W, h: H, color: style.palette.bg });
