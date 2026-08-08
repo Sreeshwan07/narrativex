@@ -5,6 +5,20 @@
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { createRequire } from "node:module";
+
+// @algorandfoundation/algokit-utils (pulled in by @x402/avm) does
+// `import { Buffer } from "buffer"` inside its codecs. In the browser that
+// specifier resolves to Vite's empty `__vite-browser-external` stub, so
+// `Buffer` is undefined and the Algorand transaction encoder fails with
+// "Cannot read properties of undefined (reading 'from')".
+//
+// Dev hid this: esbuild dep pre-bundling resolved the npm `buffer` package,
+// so only the production (published) client bundle got the empty stub.
+// The alias below is scoped to the CLIENT environment only, because the npm
+// `buffer` package uses `require`, which throws in the SSR/worker runtime
+// (which already provides a native Buffer).
+const bufferPolyfillPath = createRequire(import.meta.url).resolve("buffer/");
 
 export default defineConfig({
   tanstackStart: {
@@ -14,26 +28,21 @@ export default defineConfig({
   },
   vite: {
     plugins: [
-      // @algorandfoundation/algokit-utils (pulled in by @x402/avm) does
-      // `import { Buffer } from "buffer"` inside its codecs. In the browser that
-      // specifier resolves to an empty stub, so `Buffer` is undefined and the
-      // Algorand transaction decoder fails with
-      // "Cannot read properties of undefined (reading 'from')".
-      // Redirect it to the userland `buffer` package — CLIENT ONLY, because that
-      // package uses `require`, which throws in the SSR/worker runtime (which
-      // already has a native Buffer).
       {
         name: "client-only-buffer-alias",
+        // Must run BEFORE Vite's node-builtin resolver, or the production
+        // client bundle gets the empty stub instead of the polyfill.
+        enforce: "pre" as const,
         applyToEnvironment: (env: { name: string }) => env.name === "client",
-        async resolveId(this: any, id: string) {
-          if (id !== "buffer" && id !== "node:buffer") return null;
-          const resolved = await this.resolve("buffer/", undefined, { skipSelf: true });
-          return resolved?.id ?? null;
+        resolveId(id: string) {
+          return id === "buffer" || id === "node:buffer" ? bufferPolyfillPath : null;
         },
       },
     ],
     optimizeDeps: { include: ["buffer"] },
   },
+
 });
+
 
 
