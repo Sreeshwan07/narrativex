@@ -61,7 +61,7 @@ export async function exportPptx(deck: Deck) {
           color: op.color,
           bold: op.bold ?? false,
           italic: op.italic ?? false,
-          underline: op.underline ? { style: "sng" as const } : undefined,
+          ...(op.underline ? { underline: { style: "sng" as const } } : {}),
           fontFace: style.fonts[op.font].pptx,
           align: op.align ?? "left",
           valign: "top",
