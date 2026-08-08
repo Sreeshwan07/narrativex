@@ -24,6 +24,7 @@ export type DrawOp =
       font: FontRole;
       bold?: boolean;
       italic?: boolean;
+      underline?: boolean;
       caps?: boolean;
       align?: "left" | "center" | "right";
       lineHeight?: number;
