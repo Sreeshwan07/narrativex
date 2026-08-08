@@ -1,5 +1,5 @@
 import { streamText, Output, NoObjectGeneratedError } from "ai";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
+import { getAIProvider, AIConfigurationError } from "@/lib/ai/provider.server";
 import {
   ANALYZE_LIMITS,
   emptyPitch,
@@ -9,7 +9,7 @@ import {
   type Pitch,
 } from "@/lib/pitch/schema";
 
-const MODEL = "google/gemini-3.6-flash";
+
 
 const SYSTEM_PROMPT = `You are an analyst who turns technical project documentation into investor-ready pitch material.
 
