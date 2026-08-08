@@ -18,19 +18,13 @@ export default defineConfig({
     // specifier resolves to an empty stub, so `Buffer` is undefined and the
     // Algorand transaction decoder fails with
     // "Cannot read properties of undefined (reading 'from')".
-    // Map it to the userland `buffer` package — CLIENT ONLY. On the server the
-    // userland shim throws "require is not defined", which 500s SSR/API routes.
-    environments: {
-      client: {
-        resolve: {
-          alias: [
-            { find: /^buffer$/, replacement: "buffer/index.js" },
-            { find: /^node:buffer$/, replacement: "buffer/index.js" },
-          ],
-        },
-      },
+    // Map it to the userland `buffer` package so the codecs work client-side.
+    resolve: {
+      alias: [
+        { find: /^buffer$/, replacement: "buffer/" },
+        { find: /^node:buffer$/, replacement: "buffer/" },
+      ],
     },
     optimizeDeps: { include: ["buffer"] },
-  } as any,
+  },
 });
-
