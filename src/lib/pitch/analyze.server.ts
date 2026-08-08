@@ -1,5 +1,5 @@
 import { streamText, Output, NoObjectGeneratedError } from "ai";
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
+import { getAIProvider, AIConfigurationError } from "@/lib/ai/provider.server";
 import {
   ANALYZE_LIMITS,
   emptyPitch,
@@ -9,7 +9,7 @@ import {
   type Pitch,
 } from "@/lib/pitch/schema";
 
-const MODEL = "google/gemini-3.6-flash";
+
 
 const SYSTEM_PROMPT = `You are an analyst who turns technical project documentation into investor-ready pitch material.
 
@@ -64,19 +64,23 @@ function normalize(pitch: Pitch): Pitch {
 
 /** Server-only: analyses README/documentation text into a validated pitch object. */
 export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeResult> {
-  const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) {
-    return { success: false, error: "AI is not configured for this project." };
-  }
-
   const source = content.trim().slice(0, ANALYZE_LIMITS.maxChars);
-  const gateway = createLovableAiGatewayProvider(apiKey, undefined, { structuredOutputs: true });
+
+  let ai: ReturnType<typeof getAIProvider>;
+  try {
+    ai = getAIProvider();
+  } catch (error) {
+    if (error instanceof AIConfigurationError) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: "AI could not be initialised on the server." };
+  }
 
   try {
     // Streamed on the wire so long documents never hit the platform request timeout,
     // but consumed server-side because this endpoint is one-shot.
     const result = streamText({
-      model: gateway(MODEL),
+      model: ai.model,
       system: SYSTEM_PROMPT,
       output: Output.object({ schema: pitchSchema }),
       prompt: `Analyse the following project documentation and produce the structured pitch fields.\n\n---\n${source}\n---`,
@@ -85,26 +89,36 @@ export async function analyzeReadme({ content }: AnalyzeInput): Promise<AnalyzeR
     const output = await result.output;
     const parsed = pitchSchema.safeParse(output);
     if (!parsed.success) {
-      return { success: false, error: "The AI returned an unexpected response. Please try again." };
+      return {
+        success: false,
+        error: "The AI returned an invalid pitch structure. Please try again.",
+      };
     }
     return { success: true, pitch: normalize(parsed.data) };
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
       return {
         success: false,
-        error: "The AI could not structure this documentation. Try a more descriptive README.",
+        error: "The AI returned an invalid pitch structure. Please try again.",
       };
     }
 
     const message = error instanceof Error ? error.message : "";
-    console.error("analyzeReadme failed:", message);
+    console.error(`analyzeReadme failed (${ai.provider}/${ai.modelId}):`, message);
 
-    if (message.includes("429")) {
-      return { success: false, error: "Too many requests right now. Please retry in a moment." };
+    if (/\b401\b|unauthorized|invalid api key/i.test(message)) {
+      return { success: false, error: "AI authentication failed. Check the production API key." };
     }
-    if (message.includes("402")) {
+    if (/\b429\b|rate limit/i.test(message)) {
+      return { success: false, error: "AI rate limit reached. Please try again shortly." };
+    }
+    if (/\b402\b|insufficient|quota|credit/i.test(message)) {
       return { success: false, error: "AI credits are exhausted. Add credits to continue." };
+    }
+    if (/model.*(not found|does not exist|unavailable)|\b404\b/i.test(message)) {
+      return { success: false, error: "The configured AI model is unavailable. Check AI_MODEL." };
     }
     return { success: false, error: "Analysis failed. Please try again." };
   }
+
 }

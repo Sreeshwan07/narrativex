@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
+import { Route as ApiPublicAiStatusRouteImport } from './routes/api/public/ai-status'
 import { Route as ApiPublicGenerateDeckRouteImport } from './routes/api/public/generate-deck'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicX402StatusRouteImport } from './routes/api/public/x402-status'
@@ -29,6 +30,11 @@ const AuthRoute = AuthRouteImport.update({
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAiStatusRoute = ApiPublicAiStatusRouteImport.update({
+  id: '/api/public/ai-status',
+  path: '/api/public/ai-status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicGenerateDeckRoute = ApiPublicGenerateDeckRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/ai-status': typeof ApiPublicAiStatusRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/x402-status': typeof ApiPublicX402StatusRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/ai-status': typeof ApiPublicAiStatusRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/x402-status': typeof ApiPublicX402StatusRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/workspace': typeof WorkspaceRoute
+  '/api/public/ai-status': typeof ApiPublicAiStatusRoute
   '/api/public/generate-deck': typeof ApiPublicGenerateDeckRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/x402-status': typeof ApiPublicX402StatusRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/workspace'
+    | '/api/public/ai-status'
     | '/api/public/generate-deck'
     | '/api/public/health'
     | '/api/public/x402-status'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/workspace'
+    | '/api/public/ai-status'
     | '/api/public/generate-deck'
     | '/api/public/health'
     | '/api/public/x402-status'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/workspace'
+    | '/api/public/ai-status'
     | '/api/public/generate-deck'
     | '/api/public/health'
     | '/api/public/x402-status'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   WorkspaceRoute: typeof WorkspaceRoute
+  ApiPublicAiStatusRoute: typeof ApiPublicAiStatusRoute
   ApiPublicGenerateDeckRoute: typeof ApiPublicGenerateDeckRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicX402StatusRoute: typeof ApiPublicX402StatusRoute
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/workspace'
       fullPath: '/workspace'
       preLoaderRoute: typeof WorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ai-status': {
+      id: '/api/public/ai-status'
+      path: '/api/public/ai-status'
+      fullPath: '/api/public/ai-status'
+      preLoaderRoute: typeof ApiPublicAiStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/generate-deck': {
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   WorkspaceRoute: WorkspaceRoute,
+  ApiPublicAiStatusRoute: ApiPublicAiStatusRoute,
   ApiPublicGenerateDeckRoute: ApiPublicGenerateDeckRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicX402StatusRoute: ApiPublicX402StatusRoute,
