@@ -9,6 +9,7 @@ import {
   type DeckPhase,
   type DeckSlide,
   type SlideLayout,
+  DEFAULT_SLIDE_FORMAT,
 } from "@/lib/deck/schema";
 import { getDeckLength, getDeckStyle } from "@/lib/deck/styles";
 
