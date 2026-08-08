@@ -1025,3 +1025,32 @@ function baseSlideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
   }
   return p.ops;
 }
+
+/**
+ * Renders a slide, then applies the editor's per-slide formatting overrides.
+ * Preview, PPTX and PDF all consume this, so an edit shows up everywhere.
+ */
+export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
+  const ops = baseSlideToOps(slide, styleId);
+  const f = slide.format;
+  if (!f) return ops;
+
+  const scale = Number.isFinite(f.scale) && f.scale > 0 ? f.scale : 1;
+  const bg = f.background?.trim().replace(/^#/, "");
+
+  return ops.map((op, i): DrawOp => {
+    if (op.kind === "rect") {
+      // The first rect is always the full-bleed slide background.
+      if (i === 0 && bg && /^[0-9a-fA-F]{6}$/.test(bg)) return { ...op, color: bg.toUpperCase() };
+      return op;
+    }
+    return {
+      ...op,
+      size: Math.max(6, Math.round(op.size * scale)),
+      align: f.align === "inherit" ? op.align : f.align,
+      bold: f.bold ? true : op.bold,
+      italic: f.italic ? true : op.italic,
+      underline: f.underline ? true : op.underline,
+    };
+  });
+}
