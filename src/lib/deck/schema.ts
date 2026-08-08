@@ -99,6 +99,8 @@ export const deckSlideSchema = z.object({
   /** Honest disclosure shown when the source documentation lacked evidence. */
   note: z.string().default(""),
   closing: z.string().default(""),
+  format: slideFormatSchema.default(DEFAULT_SLIDE_FORMAT),
+
 });
 
 export type DeckBullet = z.infer<typeof deckBulletSchema>;
