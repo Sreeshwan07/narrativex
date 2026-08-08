@@ -24,6 +24,11 @@ export default defineConfig({
       // already has a native Buffer).
       {
         name: "client-only-buffer-alias",
+        // MUST run before Vite's node-builtin resolver, otherwise the
+        // production client build silently swaps `buffer` for an empty
+        // `__vite-browser-external` stub (dev worked because esbuild
+        // pre-bundling resolved the npm package instead).
+        enforce: "pre" as const,
         applyToEnvironment: (env: { name: string }) => env.name === "client",
         async resolveId(this: any, id: string) {
           if (id !== "buffer" && id !== "node:buffer") return null;
@@ -31,6 +36,7 @@ export default defineConfig({
           return resolved?.id ?? null;
         },
       },
+
     ],
     optimizeDeps: { include: ["buffer"] },
   },
