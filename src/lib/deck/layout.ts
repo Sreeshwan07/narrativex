@@ -1044,13 +1044,16 @@ export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
       if (i === 0 && bg && /^[0-9a-fA-F]{6}$/.test(bg)) return { ...op, color: bg.toUpperCase() };
       return op;
     }
-    return {
+    const next: Extract<DrawOp, { kind: "text" }> = {
       ...op,
       size: Math.max(6, Math.round(op.size * scale)),
-      align: f.align === "inherit" ? op.align : f.align,
-      bold: f.bold ? true : op.bold,
-      italic: f.italic ? true : op.italic,
-      underline: f.underline ? true : op.underline,
+    };
+    if (f.align !== "inherit") next.align = f.align;
+    if (f.bold) next.bold = true;
+    if (f.italic) next.italic = true;
+    if (f.underline) next.underline = true;
+    return next;
+
     };
   });
 }
