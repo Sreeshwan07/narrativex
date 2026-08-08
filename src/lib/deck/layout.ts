@@ -1053,7 +1053,5 @@ export function slideToOps(slide: DeckSlide, styleId?: string): DrawOp[] {
     if (f.italic) next.italic = true;
     if (f.underline) next.underline = true;
     return next;
-
-    };
   });
 }
