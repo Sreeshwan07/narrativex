@@ -9,12 +9,16 @@ export const Route = createFileRoute("/api/public/health")({
     handlers: {
       GET: async () => {
         const { readX402Config, toPublicStatus } = await import("@/lib/x402/config.server");
+        const { getAIStatus } = await import("@/lib/ai/provider.server");
         const status = toPublicStatus(readX402Config());
+        const ai = getAIStatus();
         return Response.json(
           {
             status: "ok",
-            service: "PitchForge",
-            aiConfigured: Boolean(process.env["LOVABLE_API_KEY"] || process.env["OPENAI_API_KEY"]),
+            service: "NarrativeX",
+            aiConfigured: ai.configured,
+            aiProvider: ai.provider,
+            aiModel: ai.model,
             x402Configured: status.configured,
             algorandNetwork: status.network,
             algorandTestnetConfigured: status.algorandTestnetConfigured,
@@ -25,6 +29,7 @@ export const Route = createFileRoute("/api/public/health")({
           { headers: { "cache-control": "no-store" } },
         );
       },
+
     },
   },
 });
