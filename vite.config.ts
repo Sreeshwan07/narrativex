@@ -13,18 +13,27 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    // @algorandfoundation/algokit-utils (pulled in by @x402/avm) does
-    // `import { Buffer } from "buffer"` inside its codecs. In the browser that
-    // specifier resolves to an empty stub, so `Buffer` is undefined and the
-    // Algorand transaction decoder fails with
-    // "Cannot read properties of undefined (reading 'from')".
-    // Map it to the userland `buffer` package so the codecs work client-side.
-    resolve: {
-      alias: [
-        { find: /^buffer$/, replacement: "buffer/" },
-        { find: /^node:buffer$/, replacement: "buffer/" },
-      ],
-    },
+    plugins: [
+      // @algorandfoundation/algokit-utils (pulled in by @x402/avm) does
+      // `import { Buffer } from "buffer"` inside its codecs. In the browser that
+      // specifier resolves to an empty stub, so `Buffer` is undefined and the
+      // Algorand transaction decoder fails with
+      // "Cannot read properties of undefined (reading 'from')".
+      // Redirect it to the userland `buffer` package — CLIENT ONLY, because that
+      // package uses `require`, which throws in the SSR/worker runtime (which
+      // already has a native Buffer).
+      {
+        name: "client-only-buffer-alias",
+        applyToEnvironment: (env: { name: string }) => env.name === "client",
+        async resolveId(this: any, id: string) {
+          if (id !== "buffer" && id !== "node:buffer") return null;
+          const resolved = await this.resolve("buffer/", undefined, { skipSelf: true });
+          return resolved?.id ?? null;
+        },
+      },
+    ],
     optimizeDeps: { include: ["buffer"] },
   },
 });
+
+
