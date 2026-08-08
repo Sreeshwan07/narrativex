@@ -80,6 +80,8 @@ function toSlide(seed: SectionSeed, number: number, label: string): DeckSlide {
     phases: seed.phases ?? [],
     note: seed.note ?? "",
     closing: seed.closing ?? "",
+    format: { ...DEFAULT_SLIDE_FORMAT },
+
   };
 }
 
